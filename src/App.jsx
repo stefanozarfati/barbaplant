@@ -475,10 +475,6 @@ function normalizza(json, stagione) {
 async function unTentativo(dataUrl, contesto) {
   const mediaType = dataUrl.slice(5, dataUrl.indexOf(";"));
   const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
-  useEffect(() => {
-    scriviArchivio({ piante, profilo });
-  }, [piante, profilo]);
-
   const stagione = stagioneCorrente();
   const istruzioni = `${PROMPT_DIAGNOSI}\n\nStagione attuale: ${stagione}.\nContesto fornito dall'utente: ${contesto || "nessuno"}.`;
 
@@ -941,6 +937,10 @@ export default function App() {
     const passo = el.clientWidth + 16;
     setIndiceCard(Math.round(el.scrollLeft / passo));
   }
+
+  useEffect(() => {
+    scriviArchivio({ piante, profilo });
+  }, [piante, profilo]);
 
   const stagione = stagioneCorrente();
   const analisiTotali = useMemo(
