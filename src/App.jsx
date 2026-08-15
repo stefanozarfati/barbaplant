@@ -425,7 +425,7 @@ async function chiamaGemini(parti) {
         headers: { "Content-Type": "application/json", "x-goog-api-key": CFG.chiave },
         body: JSON.stringify({
           contents: [{ role: "user", parts: parti }],
-          generationConfig: { temperature: 0.4, maxOutputTokens: 1400, responseMimeType: "application/json" },
+          generationConfig: { temperature: 0.4, maxOutputTokens: 3000, responseMimeType: "application/json" },
         }),
       }
     ).catch((e) => {

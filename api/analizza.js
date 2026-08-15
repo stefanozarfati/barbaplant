@@ -26,6 +26,47 @@ Stagione attuale: ${stagione || "non indicata"}.
 Contesto fornito dall'utente: ${contesto || "nessuno"}.`;
 }
 
+// Struttura obbligatoria: Google riempie sempre questi campi, niente risposte a metà.
+const VOCE_CURA = {
+  type: "OBJECT",
+  properties: { titolo: { type: "STRING" }, dettaglio: { type: "STRING" } },
+  required: ["titolo", "dettaglio"],
+};
+const SCHEMA_DIAGNOSI = {
+  type: "OBJECT",
+  properties: {
+    nomeComune: { type: "STRING" },
+    nomeScientifico: { type: "STRING" },
+    salute: { type: "INTEGER" },
+    sintesi: { type: "STRING" },
+    problemi: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          titolo: { type: "STRING" },
+          gravita: { type: "STRING" },
+          descrizione: { type: "STRING" },
+        },
+        required: ["titolo", "descrizione"],
+      },
+    },
+    curaCasalinga: { type: "ARRAY", items: VOCE_CURA },
+    curaProfessionale: { type: "ARRAY", items: VOCE_CURA },
+    consiglioStagionale: { type: "STRING" },
+  },
+  required: ["nomeComune", "nomeScientifico", "salute", "sintesi", "curaCasalinga", "curaProfessionale", "consiglioStagionale"],
+};
+const SCHEMA_STAGIONE = {
+  type: "OBJECT",
+  properties: {
+    consiglioStagionale: { type: "STRING" },
+    curaCasalinga: { type: "ARRAY", items: VOCE_CURA },
+    curaProfessionale: { type: "ARRAY", items: VOCE_CURA },
+  },
+  required: ["consiglioStagionale", "curaCasalinga", "curaProfessionale"],
+};
+
 function promptStagione(pianta, stagione) {
   const p = pianta || {};
   return `Sei un agronomo. La pianta si chiama "${p.nome || "senza nome"}", specie ${p.specie || "non identificata"}.
@@ -52,15 +93,17 @@ export default async function handler(req, res) {
   const corpo = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body || {};
   const { tipo, immagine, mediaType, contesto, pianta, stagione } = corpo;
 
-  let parti;
+  let parti, schema;
   if (tipo === "stagione") {
     parti = [{ text: promptStagione(pianta, stagione) }];
+    schema = SCHEMA_STAGIONE;
   } else {
     if (!immagine) return res.status(400).json({ errore: "Manca la foto da analizzare" });
     parti = [
       { inline_data: { mime_type: mediaType || "image/jpeg", data: immagine } },
       { text: promptDiagnosi(stagione, contesto) },
     ];
+    schema = SCHEMA_DIAGNOSI;
   }
 
   let ultimo = "Nessun modello disponibile";
@@ -75,8 +118,9 @@ export default async function handler(req, res) {
             contents: [{ role: "user", parts: parti }],
             generationConfig: {
               temperature: 0.4,
-              maxOutputTokens: 1400,
+              maxOutputTokens: 3000,
               responseMimeType: "application/json",
+              responseSchema: schema,
             },
           }),
         }
