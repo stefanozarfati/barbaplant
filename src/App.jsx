@@ -523,32 +523,6 @@ async function analizzaFoto(dataUrl, contesto = "") {
   throw ultimoErrore;
 }
 
-async function provaProxy(url) {
-  const precedente = CFG.proxy;
-  CFG.proxy = url.trim();
-  try {
-    const t = await chiamaProxy('Rispondi solo con {"ok":true}');
-    if (!estraiJSON(t)) throw new Error("Risposta inattesa dal proxy");
-    return true;
-  } catch (e) {
-    CFG.proxy = precedente;
-    throw e;
-  }
-}
-
-async function provaChiave(chiave) {
-  const precedente = CFG.chiave;
-  CFG.chiave = chiave.trim();
-  try {
-    const t = await chiamaGemini([{ text: 'Rispondi solo con {"ok":true}' }]);
-    if (!estraiJSON(t)) throw new Error("Risposta inattesa");
-    return true;
-  } catch (e) {
-    CFG.chiave = precedente;
-    throw e;
-  }
-}
-
 async function ricalibraStagione(pianta, stagione) {
   if (SERVER_DISPONIBILE) {
     try {
@@ -617,6 +591,11 @@ const IcoCollezione = (p) => (
   <Svg {...p}>
     <rect x="3.5" y="4.5" width="17" height="15" rx="2.5" />
     <path d="M3.5 10h17M9.2 10v9.5" />
+  </Svg>
+);
+const IcoPiu = (p) => (
+  <Svg {...p}>
+    <path d="M12 5v14M5 12h14" />
   </Svg>
 );
 const IcoLibro = (p) => (
@@ -892,8 +871,46 @@ function SchedaDiagnosi({ diagnosi }) {
 
 /* ---------------------- 5. APP ---------------------- */
 
+/* Schermata d'apertura: il viso sfuma dentro e fuori in un secondo, poi lascia posto all'app. */
+function SchermataApertura({ visibile }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-5"
+      style={{
+        backgroundColor: C.bg,
+        opacity: visibile ? 1 : 0,
+        pointerEvents: visibile ? "auto" : "none",
+        transition: "opacity 380ms ease",
+        animation: "bp-apertura 1000ms ease forwards",
+      }}
+    >
+      <style>{`
+        @keyframes bp-apertura {
+          0%   { opacity: 0; }
+          28%  { opacity: 1; }
+          72%  { opacity: 1; }
+          100% { opacity: 0; }
+        }
+      `}</style>
+      <img
+        src="/volto-apertura.png"
+        alt=""
+        style={{ width: 190, height: 190, objectFit: "contain" }}
+      />
+      <img src="/icona-180.png" alt="BarbaPlant" style={{ width: 46, height: 46, borderRadius: 14, boxShadow: "0 2px 10px #00000022" }} />
+    </div>
+  );
+}
+
 export default function App() {
   const [scheda, setScheda] = useState("bacheca");
+  const [mostraApertura, setMostraApertura] = useState(true);
+
+  useEffect(() => {
+    const t = setTimeout(() => setMostraApertura(false), 1000);
+    return () => clearTimeout(t);
+  }, []);
+
   const [piante, setPiante] = useState(() => {
     const salvato = leggiArchivio();
     return salvato && Array.isArray(salvato.piante) ? salvato.piante : PIANTE_INIZIALI;
@@ -902,18 +919,6 @@ export default function App() {
     const salvato = leggiArchivio();
     return (salvato && salvato.profilo) || { nome: "Giardiniere", avatar: "🧑‍🌾", citta: "Roma" };
   });
-  const [chiaveIA, setChiaveIA] = useState("");
-
-  const [indirizzoProxy, setIndirizzoProxy] = useState("");
-
-  function salvaChiave(v) {
-    setChiaveIA(v);
-    CFG.chiave = v.trim();
-  }
-  function salvaProxy(v) {
-    setIndirizzoProxy(v);
-    CFG.proxy = v.trim();
-  }
 
   // flusso analisi in bacheca
   const [fotoCorrente, setFotoCorrente] = useState(null);
@@ -1064,11 +1069,11 @@ export default function App() {
         </h1>
         <button
           onClick={() => setModaleAggiungi(true)}
-          className="rounded-full flex items-center justify-center shrink-0 text-2xl transition active:scale-90"
+          className="rounded-full flex items-center justify-center shrink-0 transition active:scale-90"
           style={{ width: 44, height: 44, backgroundColor: C.primario, color: "#fff" }}
           aria-label="Aggiungi una pianta"
         >
-          +
+          <IcoPiu s={22} />
         </button>
       </div>
 
@@ -1344,7 +1349,7 @@ export default function App() {
         <p className="text-xs" style={{ color: C.soft }}>{profilo.citta}</p>
 
         <div className="flex justify-center gap-2 mt-4 flex-wrap">
-          {["🧑‍🌾", "👩‍🌾", "🌻", "🌵", "🍀", "🦋"].map((a) => (
+          {["🧑‍🌾", "👩‍🌾", "🌻", "🌵", "🍀", "🍓", "🦋"].map((a) => (
             <button
               key={a}
               onClick={() => setProfilo({ ...profilo, avatar: a })}
@@ -1396,8 +1401,6 @@ export default function App() {
         </div>
       </Card>
 
-      <ImpostazioniIA chiave={chiaveIA} onCambia={salvaChiave} proxy={indirizzoProxy} onCambiaProxy={salvaProxy} />
-
       <Card className="p-5">
         <p className="text-sm font-bold" style={{ color: C.testo }}>Sui dati</p>
         <p className="text-xs mt-1 leading-relaxed" style={{ color: C.soft }}>
@@ -1419,6 +1422,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen w-full" style={{ backgroundColor: C.bg, color: C.testo, fontFamily: 'ui-rounded, "SF Pro Rounded", "Nunito", "Quicksand", system-ui, sans-serif' }}>
+      {mostraApertura && <SchermataApertura visibile={mostraApertura} />}
       <input ref={inputFotocamera} type="file" accept="image/*" capture="environment" onChange={gestisciFoto} className="hidden" />
       <input ref={inputGalleria} type="file" accept="image/*" onChange={gestisciFoto} className="hidden" />
 
@@ -1428,7 +1432,7 @@ export default function App() {
           className="sticky top-0 z-20 px-5 py-3 flex items-center justify-center"
           style={{ backgroundColor: C.bg + "f2", backdropFilter: "blur(8px)" }}
         >
-          <p className="text-lg font-bold tracking-wide" style={{ color: C.soft }}>BarbaPlant</p>
+          <img src="/wordmark.png" alt="BarbaPlant" style={{ height: 30, width: "auto" }} />
         </header>
 
         <main className="px-5 pt-5" style={{ paddingBottom: 110 }}>
@@ -1521,119 +1525,6 @@ function LivelloPollice({ piante, analisi }) {
           ? `Ancora ${prossimo.min - punti} punti per diventare ${prossimo.nome}. Ogni pianta seguita vale 3 punti, ogni analisi 2.`
           : "Hai raggiunto il livello massimo. Le tue piante ringraziano."}
       </p>
-    </Card>
-  );
-}
-
-const PROXY_SUGGERITO = "https://oservicemeteo-proxy.vercel.app/api/proxy";
-
-function ImpostazioniIA({ chiave, onCambia, proxy, onCambiaProxy }) {
-  const [urlProxy, setUrlProxy] = useState(proxy || PROXY_SUGGERITO);
-  const [statoProxy, setStatoProxy] = useState("");
-  const [msgProxy, setMsgProxy] = useState("");
-
-  const [testo, setTesto] = useState(chiave);
-  const [stato, setStato] = useState("");
-  const [messaggio, setMessaggio] = useState("");
-  const [mostra, setMostra] = useState(false);
-
-  async function collegaProxy() {
-    setStatoProxy("prova");
-    setMsgProxy("");
-    try {
-      await provaProxy(urlProxy);
-      onCambiaProxy(urlProxy);
-      setStatoProxy("ok");
-      setMsgProxy("Proxy collegato: l'app funziona ora anche fuori da Claude.");
-    } catch (e) {
-      setStatoProxy("errore");
-      setMsgProxy(e.message);
-    }
-  }
-  function staccaProxy() {
-    onCambiaProxy("");
-    setStatoProxy("");
-    setMsgProxy("Proxy scollegato.");
-  }
-
-  async function verifica() {
-    setStato("prova");
-    setMessaggio("");
-    try {
-      await provaChiave(testo);
-      onCambia(testo);
-      setStato("ok");
-      setMessaggio("Chiave valida: le analisi passano da Google Gemini.");
-    } catch (e) {
-      setStato("errore");
-      setMessaggio(e.message);
-    }
-  }
-  function scollega() {
-    setTesto("");
-    onCambia("");
-    setStato("");
-    setMessaggio("Chiave rimossa.");
-  }
-
-  const motore = proxy ? "Server Vercel" : chiave ? "Google Gemini" : "Claude interno";
-
-  return (
-    <Card className="p-5">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-bold" style={{ color: C.testo }}>Motore di riconoscimento</p>
-        <Etichetta testo={motore} colore={proxy || chiave ? C.salute : C.primario} />
-      </div>
-
-      <p className="text-xs mt-3 font-bold" style={{ color: C.testo }}>1. Server con la tua chiave (consigliato)</p>
-      <p className="text-xs mt-1 leading-relaxed" style={{ color: C.soft }}>
-        L'indirizzo del tuo proxy su Vercel. La chiave resta sul server, non entra mai nell'app.
-      </p>
-      <input
-        value={urlProxy}
-        onChange={(e) => setUrlProxy(e.target.value)}
-        placeholder="https://.../api/proxy"
-        className="w-full mt-2 rounded-2xl px-4 py-3 text-sm outline-none"
-        style={{ backgroundColor: C.velo, color: C.testo, border: `1px solid ${C.bordo}` }}
-      />
-      <div className="flex gap-2 mt-2">
-        <Bottone onClick={collegaProxy} disabled={!urlProxy.trim() || statoProxy === "prova"} className="flex-1 flex items-center justify-center gap-2">
-          {statoProxy === "prova" ? <><Spinner /> Prova in corso</> : "Collega il server"}
-        </Bottone>
-        {proxy && <Bottone variante="vuoto" onClick={staccaProxy}>Stacca</Bottone>}
-      </div>
-      {msgProxy && (
-        <p className="text-xs mt-2 leading-relaxed" style={{ color: statoProxy === "errore" ? C.allerta : C.salute }}>{msgProxy}</p>
-      )}
-
-      <div className="mt-5 pt-4" style={{ borderTop: `1px solid ${C.bordo}` }}>
-        <p className="text-xs font-bold" style={{ color: C.testo }}>2. Chiave Google Gemini (alternativa)</p>
-        <p className="text-xs mt-1 leading-relaxed" style={{ color: C.soft }}>
-          Si usa solo se il server sopra non è collegato. Resta su questo dispositivo.
-        </p>
-        <div className="flex gap-2 mt-2">
-          <input
-            type={mostra ? "text" : "password"}
-            value={testo}
-            onChange={(e) => setTesto(e.target.value)}
-            placeholder="AIza..."
-            className="flex-1 rounded-2xl px-4 py-3 text-sm outline-none"
-            style={{ backgroundColor: C.velo, color: C.testo, border: `1px solid ${C.bordo}` }}
-          />
-          <button onClick={() => setMostra(!mostra)} className="text-xs font-semibold px-2" style={{ color: C.soft }}>
-            {mostra ? "nascondi" : "mostra"}
-          </button>
-        </div>
-        <div className="flex gap-2 mt-2">
-          <Bottone variante="tenue" onClick={verifica} disabled={!testo.trim() || stato === "prova"} className="flex-1 flex items-center justify-center gap-2">
-            {stato === "prova" ? <><Spinner colore={C.testo} /> Verifica in corso</> : "Verifica e collega"}
-          </Bottone>
-          {chiave && <Bottone variante="vuoto" onClick={scollega}>Scollega</Bottone>}
-        </div>
-        {messaggio && (
-          <p className="text-xs mt-2 leading-relaxed" style={{ color: stato === "errore" ? C.allerta : C.salute }}>{messaggio}</p>
-        )}
-      </div>
     </Card>
   );
 }
