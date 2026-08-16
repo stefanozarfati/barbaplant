@@ -868,7 +868,7 @@ function SchermataApertura({ visibile }) {
         opacity: visibile ? 1 : 0,
         pointerEvents: visibile ? "auto" : "none",
         transition: "opacity 380ms ease",
-        animation: "bp-apertura 2000ms ease forwards",
+        animation: "bp-apertura 4000ms ease forwards",
       }}
     >
       <style>{`
@@ -878,13 +878,27 @@ function SchermataApertura({ visibile }) {
           72%  { opacity: 1; }
           100% { opacity: 0; }
         }
+        @keyframes bp-pulsazione {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.1); }
+        }
       `}</style>
       <img
         src="/volto-apertura.png"
         alt=""
         style={{ width: 228, height: 228, objectFit: "contain" }}
       />
-      <img src="/icona-180.png" alt="BarbaPlant" style={{ width: 138, height: 138, borderRadius: 14, boxShadow: "0 2px 10px #00000022" }} />
+      <img
+        src="/icona-180.png"
+        alt="BarbaPlant"
+        style={{
+          width: 138,
+          height: 138,
+          borderRadius: 14,
+          boxShadow: "0 2px 10px #00000022",
+          animation: "bp-pulsazione 1600ms cubic-bezier(0.34, 1.56, 0.64, 1) infinite",
+        }}
+      />
     </div>
   );
 }
@@ -894,7 +908,7 @@ export default function App() {
   const [mostraApertura, setMostraApertura] = useState(true);
 
   useEffect(() => {
-    const t = setTimeout(() => setMostraApertura(false), 2000);
+    const t = setTimeout(() => setMostraApertura(false), 4000);
     return () => clearTimeout(t);
   }, []);
 
