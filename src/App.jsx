@@ -587,12 +587,6 @@ const IcoFotocamera = (p) => (
     <circle cx="12" cy="13.4" r="3.4" />
   </Svg>
 );
-const IcoCollezione = (p) => (
-  <Svg {...p}>
-    <rect x="3.5" y="4.5" width="17" height="15" rx="2.5" />
-    <path d="M3.5 10h17M9.2 10v9.5" />
-  </Svg>
-);
 const IcoPiu = (p) => (
   <Svg {...p}>
     <path d="M12 5v14M5 12h14" />
@@ -610,27 +604,6 @@ const IcoCestino = (p) => (
     <path d="M10 11v6M14 11v6" />
   </Svg>
 );
-const IcoLibro = (p) => (
-  <Svg {...p}>
-    <path d="M4 5.6A2.1 2.1 0 0 1 6.1 3.5H19v14H6.1A2.1 2.1 0 0 0 4 19.6z" />
-    <path d="M8 7.8h7M8 11.3h7" />
-  </Svg>
-);
-
-function ScorciatoiaCard({ icona, titolo, sotto, onClick }) {
-  return (
-    <button onClick={onClick} className="rounded-3xl p-3 text-left transition active:scale-95 shadow-sm"
-            style={{ backgroundColor: C.card, border: `1px solid ${C.bordo}` }}>
-      <span className="rounded-full flex items-center justify-center mb-2"
-            style={{ width: 38, height: 38, backgroundColor: C.velo, color: C.primario }}>
-        {icona}
-      </span>
-      <p className="text-xs font-bold leading-tight" style={{ color: C.testo }}>{titolo}</p>
-      {sotto && <p className="text-xs mt-1" style={{ color: C.soft }}>{sotto}</p>}
-    </button>
-  );
-}
-
 function giorniFa(iso) {
   if (!iso) return "mai";
   const g = Math.round((Date.now() - new Date(iso + "T00:00:00").getTime()) / 86400000);
@@ -792,8 +765,8 @@ function BloccoCura({ titolo, sottotitolo, icona, voci, colore }) {
       <div className="flex items-center gap-2">
         <span className="text-lg">{icona}</span>
         <div>
-          <p className="text-sm font-bold" style={{ color: colore }}>{titolo}</p>
-          <p className="text-xs" style={{ color: C.soft }}>{sottotitolo}</p>
+          <p className="text-base font-bold" style={{ color: colore }}>{titolo}</p>
+          <p className="text-sm" style={{ color: C.soft }}>{sottotitolo}</p>
         </div>
       </div>
       <ul className="mt-3 space-y-3">
@@ -802,13 +775,13 @@ function BloccoCura({ titolo, sottotitolo, icona, voci, colore }) {
             <li key={i} className="flex gap-2">
               <span className="mt-1 shrink-0 rounded-full" style={{ width: 6, height: 6, backgroundColor: colore }} />
               <div>
-                <p className="text-sm font-semibold" style={{ color: C.testo }}>{v.titolo}</p>
-                <p className="text-xs leading-relaxed" style={{ color: C.soft }}>{v.dettaglio}</p>
+                <p className="text-base font-semibold" style={{ color: C.testo }}>{v.titolo}</p>
+                <p className="text-sm leading-relaxed" style={{ color: C.soft }}>{v.dettaglio}</p>
               </div>
             </li>
           ))
         ) : (
-          <li className="text-xs" style={{ color: C.soft }}>Nessuna indicazione disponibile.</li>
+          <li className="text-sm" style={{ color: C.soft }}>Nessuna indicazione disponibile.</li>
         )}
       </ul>
     </div>
@@ -833,7 +806,7 @@ function SchedaDiagnosi({ diagnosi }) {
       </div>
 
       {diagnosi.sintesi && (
-        <p className="text-sm leading-relaxed" style={{ color: C.testo }}>{diagnosi.sintesi}</p>
+        <p className="text-base leading-relaxed" style={{ color: C.testo }}>{diagnosi.sintesi}</p>
       )}
 
       {diagnosi.problemi && diagnosi.problemi.length > 0 && (
@@ -842,13 +815,13 @@ function SchedaDiagnosi({ diagnosi }) {
           {diagnosi.problemi.map((p, i) => (
             <div key={i} className="rounded-2xl px-3 py-2" style={{ backgroundColor: C.velo }}>
               <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-semibold" style={{ color: C.testo }}>{p.titolo}</p>
+                <p className="text-base font-semibold" style={{ color: C.testo }}>{p.titolo}</p>
                 <Etichetta
                   testo={p.gravita || "lieve"}
                   colore={p.gravita === "grave" ? C.allerta : p.gravita === "media" ? "#c98a1e" : C.primario}
                 />
               </div>
-              <p className="text-xs mt-1" style={{ color: C.soft }}>{p.descrizione}</p>
+              <p className="text-sm mt-1" style={{ color: C.soft }}>{p.descrizione}</p>
             </div>
           ))}
         </div>
@@ -874,7 +847,7 @@ function SchedaDiagnosi({ diagnosi }) {
           <p className="text-xs font-bold uppercase tracking-wide" style={{ color: C.primario }}>
             {STAGIONI[stagioneCorrente()].emoji} Nota di stagione
           </p>
-          <p className="text-sm mt-1 leading-relaxed" style={{ color: "#f2f5ee" }}>{diagnosi.consiglioStagionale}</p>
+          <p className="text-base mt-1 leading-relaxed" style={{ color: "#f2f5ee" }}>{diagnosi.consiglioStagionale}</p>
         </div>
       )}
     </div>
@@ -909,7 +882,7 @@ function SchermataApertura({ visibile }) {
         alt=""
         style={{ width: 190, height: 190, objectFit: "contain" }}
       />
-      <img src="/icona-180.png" alt="BarbaPlant" style={{ width: 46, height: 46, borderRadius: 14, boxShadow: "0 2px 10px #00000022" }} />
+      <img src="/icona-180.png" alt="BarbaPlant" style={{ width: 138, height: 138, borderRadius: 14, boxShadow: "0 2px 10px #00000022" }} />
     </div>
   );
 }
@@ -944,16 +917,7 @@ export default function App() {
   const [modaleAggiungi, setModaleAggiungi] = useState(false);
   const [piantaAperta, setPiantaAperta] = useState(null); // id
 
-  const inputFotocamera = useRef(null);
-  const inputGalleria = useRef(null);
-  const carosello = useRef(null);
-  const [indiceCard, setIndiceCard] = useState(0);
-
-  function aggiornaIndice(e) {
-    const el = e.target;
-    const passo = el.clientWidth + 16;
-    setIndiceCard(Math.round(el.scrollLeft / passo));
-  }
+  const inputFoto = useRef(null);
 
   useEffect(() => {
     scriviArchivio({ piante, profilo });
@@ -1036,7 +1000,7 @@ export default function App() {
       dataAggiunta: oggiISO(),
       diagnosi: analisi,
       storico: [
-        { data: oggiISO(), tipo: "aggiunta", salute: analisi.salute, nota: "Aggiunta dalla diagnosi con foto." },
+        { data: oggiISO(), tipo: "aggiunta", salute: analisi.salute, nota: "Aggiunta dalla diagnosi con foto.", foto: fotoCorrente },
       ],
     };
     setPiante((p) => [nuova, ...p]);
@@ -1058,6 +1022,7 @@ export default function App() {
         tipo: "aggiunta",
         salute: dati.salute,
         nota: dati.nota || (dati.diagnosi ? "Aggiunta e riconosciuta con l'IA." : "Inserita manualmente."),
+        foto: dati.foto,
       }],
     };
     setPiante((p) => [nuova, ...p]);
@@ -1094,141 +1059,68 @@ export default function App() {
         </button>
       </div>
 
-      {piante.length > 0 ? (
-        <div>
-          <div
-            ref={carosello}
-            onScroll={aggiornaIndice}
-            className="flex gap-4 overflow-x-auto"
-            style={{ scrollSnapType: "x mandatory", scrollbarWidth: "none" }}
-          >
-            {piante.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => setPiantaAperta(p.id)}
-                className="text-left"
-                style={{ minWidth: "100%", scrollSnapAlign: "start" }}
-              >
-                <Card className="overflow-hidden">
-                  <div className="relative" style={{ height: 190, backgroundColor: C.velo }}>
-                    {p.foto ? (
-                      <img src={p.foto} alt={p.nome} className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center" style={{ fontSize: 76 }}>
-                        {p.emoji}
-                      </div>
-                    )}
-                    <div
-                      className="absolute rounded-3xl shadow-sm flex items-center justify-center"
-                      style={{ top: 14, right: 14, padding: 8, backgroundColor: "#ffffffee" }}
-                    >
-                      <AnelloSalute valore={p.salute} dimensione={84} spessore={8} />
-                    </div>
-                  </div>
-                  <div className="px-4 py-3">
-                    <p className="text-base font-bold truncate" style={{ color: C.testo }}>
-                      {p.nome} <span className="font-normal" style={{ color: C.soft }}>· {p.specie}</span>
-                    </p>
-                    <p className="text-xs mt-1" style={{ color: C.soft }}>
-                      Ultimo aggiornamento: {giorniFa(ultimaData(p))}
-                    </p>
-                  </div>
-                </Card>
-              </button>
-            ))}
-          </div>
-
-          {piante.length > 1 && (
-            <div className="flex justify-center gap-2 mt-3">
-              {piante.map((_, i) => (
-                <span
-                  key={i}
-                  className="rounded-full"
-                  style={{
-                    width: i === indiceCard ? 18 : 7,
-                    height: 7,
-                    backgroundColor: i === indiceCard ? C.primario : C.bordo,
-                    transition: "width 250ms",
-                  }}
-                />
-              ))}
-            </div>
+      <Card className="overflow-hidden">
+        <div className="relative" style={{ height: 260, backgroundColor: C.velo }}>
+          {fotoCorrente ? (
+            <img src={fotoCorrente} alt="Foto da analizzare" className="w-full h-full object-cover" />
+          ) : (
+            <>
+              {/* segnaposto: sostituito dalla foto scattata/scelta finché non ce n'è una */}
+              <img
+                src="/foto-segnaposto.png"
+                alt=""
+                className="w-full h-full object-cover"
+                style={{
+                  maskImage: "radial-gradient(ellipse at center, #000 40%, transparent 90%)",
+                  WebkitMaskImage: "radial-gradient(ellipse at center, #000 40%, transparent 90%)",
+                }}
+                onError={(e) => { e.currentTarget.style.display = "none"; }}
+              />
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8 pointer-events-none">
+                <IcoFoglia s={28} />
+                <p className="text-sm font-bold mt-2" style={{ color: C.testo }}>Nessuna foto ancora</p>
+                <p className="text-sm mt-1" style={{ color: C.soft }}>Scatta o scegli una foto per riconoscere la pianta.</p>
+              </div>
+            </>
           )}
         </div>
-      ) : (
-        <Card className="p-8 text-center">
-          <p className="text-4xl">🪴</p>
-          <p className="text-sm font-bold mt-3" style={{ color: C.testo }}>La collezione è vuota</p>
-          <p className="text-xs mt-1" style={{ color: C.soft }}>
-            Scatta una foto o aggiungi una pianta a mano per iniziare a seguirla.
-          </p>
-        </Card>
-      )}
 
-      <div>
-        <button
-          onClick={() => inputFotocamera.current && inputFotocamera.current.click()}
-          className="w-full rounded-full py-4 flex items-center justify-center gap-3 shadow-sm transition active:scale-95"
-          style={{ backgroundColor: C.primario, color: "#fff" }}
-        >
-          <IcoFotocamera s={22} />
-          <span className="text-base font-bold tracking-wide">SCATTA UNA FOTO</span>
-        </button>
-        <button
-          onClick={() => inputGalleria.current && inputGalleria.current.click()}
-          className="w-full text-center text-xs font-semibold mt-2"
-          style={{ color: C.soft }}
-        >
-          oppure scegli dalla galleria
-        </button>
-      </div>
-
-      <div className="grid grid-cols-3 gap-3">
-        <ScorciatoiaCard
-          icona={<IcoVaso s={20} />}
-          titolo="Aggiungi nuova pianta"
-          onClick={() => setModaleAggiungi(true)}
-        />
-        <ScorciatoiaCard
-          icona={<IcoCollezione s={20} />}
-          titolo="Le mie piante"
-          sotto={piante.length + (piante.length === 1 ? " seguita" : " seguite")}
-          onClick={() => setScheda("piante")}
-        />
-        <ScorciatoiaCard
-          icona={<IcoLibro s={20} />}
-          titolo="Consigli di cura"
-          sotto={STAGIONI[stagione].titolo}
-          onClick={() => setScheda("esplora")}
-        />
-      </div>
-
-      {fotoCorrente && (
-        <Card className="p-5">
-          <p className="text-sm font-bold" style={{ color: C.testo }}>Foto pronta per l'analisi</p>
-          <div className="rounded-3xl overflow-hidden mt-3" style={{ border: `1px solid ${C.bordo}` }}>
-            <img src={fotoCorrente} alt="Foto da analizzare" className="w-full object-cover" style={{ maxHeight: 260 }} />
-          </div>
-          <input
-            value={contesto}
-            onChange={(e) => setContesto(e.target.value)}
-            placeholder="Aggiungi un dettaglio: dove sta, da quanto, cosa noti"
-            className="w-full mt-3 rounded-2xl px-4 py-3 text-sm outline-none"
-            style={{ backgroundColor: C.velo, color: C.testo, border: `1px solid ${C.bordo}` }}
-          />
-          <div className="flex gap-2 mt-3">
-            <Bottone onClick={avviaAnalisi} disabled={caricamento} className="flex-1 flex items-center justify-center gap-2">
-              {caricamento ? (<><Spinner /> Analisi in corso</>) : "Analizza la pianta"}
-            </Bottone>
-            <Bottone
-              variante="vuoto"
-              onClick={() => { setFotoCorrente(null); setAnalisi(null); setErrore(""); setContesto(""); setSalvata(false); }}
-            >
-              Rimuovi
-            </Bottone>
-          </div>
-        </Card>
-      )}
+        <div className="p-4">
+          {fotoCorrente ? (
+            <>
+              <input
+                value={contesto}
+                onChange={(e) => setContesto(e.target.value)}
+                placeholder="Aggiungi un dettaglio: dove sta, da quanto, cosa noti"
+                className="w-full rounded-2xl px-4 py-3 text-sm outline-none"
+                style={{ backgroundColor: C.velo, color: C.testo, border: `1px solid ${C.bordo}` }}
+              />
+              <div className="flex gap-2 mt-3">
+                <Bottone onClick={avviaAnalisi} disabled={caricamento} className="flex-1 flex items-center justify-center gap-2">
+                  {caricamento ? (<><Spinner /> Analisi in corso</>) : "Analizza la pianta"}
+                </Bottone>
+                <Bottone
+                  variante="vuoto"
+                  onClick={() => { setFotoCorrente(null); setAnalisi(null); setErrore(""); setContesto(""); setSalvata(false); }}
+                >
+                  Rimuovi
+                </Bottone>
+              </div>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => inputFoto.current && inputFoto.current.click()}
+                className="w-full rounded-full py-4 flex items-center justify-center gap-3 shadow-sm transition active:scale-95"
+                style={{ backgroundColor: C.primario, color: "#fff" }}
+              >
+                <IcoFotocamera s={22} />
+                <span className="text-base font-bold tracking-wide">SCATTA O SCEGLI UNA FOTO</span>
+              </button>
+            </>
+          )}
+        </div>
+      </Card>
 
       {errore && <Avviso testo={errore} onChiudi={() => setErrore("")} />}
 
@@ -1236,7 +1128,7 @@ export default function App() {
         <Card className="p-8 flex flex-col items-center gap-3">
           <Spinner dimensione={34} colore={C.primario} />
           <p className="text-sm font-semibold" style={{ color: C.testo }}>Sto leggendo foglie e portamento…</p>
-          <p className="text-xs text-center" style={{ color: C.soft }}>
+          <p className="text-sm text-center" style={{ color: C.soft }}>
             Identificazione della specie, stato di salute e piano di cura.
           </p>
         </Card>
@@ -1278,7 +1170,7 @@ export default function App() {
         <Card className="p-8 text-center">
           <p className="text-4xl">🪴</p>
           <p className="text-sm font-bold mt-3" style={{ color: C.testo }}>Qui non c'è ancora niente</p>
-          <p className="text-xs mt-1" style={{ color: C.soft }}>
+          <p className="text-sm mt-1" style={{ color: C.soft }}>
             Aggiungi la prima pianta per seguirne la storia nel tempo.
           </p>
           <div className="mt-4 flex justify-center">
@@ -1326,7 +1218,7 @@ export default function App() {
         </h3>
         <ul className="mt-3 space-y-2">
           {STAGIONI[stagione].punti.map((t, i) => (
-            <li key={i} className="flex gap-2 text-sm" style={{ color: "#dfe6d8" }}>
+            <li key={i} className="flex gap-2 text-base" style={{ color: "#dfe6d8" }}>
               <span style={{ color: C.primario }}>—</span>
               <span className="leading-relaxed">{t}</span>
             </li>
@@ -1339,7 +1231,7 @@ export default function App() {
           <Card key={chiave} className="p-4" style={chiave === stagione ? { borderColor: C.primario } : {}}>
             <p className="text-2xl">{s.emoji}</p>
             <p className="text-sm font-bold mt-1" style={{ color: C.testo }}>{s.titolo}</p>
-            <p className="text-xs mt-1 leading-relaxed" style={{ color: C.soft }}>{s.claim}</p>
+            <p className="text-sm mt-1 leading-relaxed" style={{ color: C.soft }}>{s.claim}</p>
           </Card>
         ))}
       </div>
@@ -1402,7 +1294,7 @@ export default function App() {
 
       <Card className="p-5">
         <p className="text-sm font-bold" style={{ color: C.testo }}>Promemoria di cura</p>
-        <p className="text-xs mt-1" style={{ color: C.soft }}>
+        <p className="text-sm mt-1" style={{ color: C.soft }}>
           In {STAGIONI[stagione].titolo.toLowerCase()} le tue {piante.length} piante seguono questi ritmi.
         </p>
         <div className="mt-3 space-y-2">
@@ -1420,7 +1312,7 @@ export default function App() {
 
       <Card className="p-5">
         <p className="text-sm font-bold" style={{ color: C.testo }}>Sui dati</p>
-        <p className="text-xs mt-1 leading-relaxed" style={{ color: C.soft }}>
+        <p className="text-sm mt-1 leading-relaxed" style={{ color: C.soft }}>
           Le foto restano nel browser per la durata della sessione e non vengono conservate. Le diagnosi sono un
           supporto: per malattie gravi o piante da frutto rivolgiti a un agronomo o a un vivaio di fiducia.
         </p>
@@ -1440,14 +1332,13 @@ export default function App() {
   return (
     <div className="min-h-screen w-full" style={{ backgroundColor: C.bg, color: C.testo, fontFamily: 'ui-rounded, "SF Pro Rounded", "Nunito", "Quicksand", system-ui, sans-serif' }}>
       {mostraApertura && <SchermataApertura visibile={mostraApertura} />}
-      <input ref={inputFotocamera} type="file" accept="image/*" capture="environment" onChange={gestisciFoto} className="hidden" />
-      <input ref={inputGalleria} type="file" accept="image/*" onChange={gestisciFoto} className="hidden" />
+      <input ref={inputFoto} type="file" accept="image/*" onChange={gestisciFoto} className="hidden" />
 
       <div className="mx-auto w-full" style={{ maxWidth: 450 }}>
         {/* intestazione */}
         <header
           className="sticky top-0 z-20 px-5 flex items-center justify-center"
-          style={{ backgroundColor: C.bg + "f2", backdropFilter: "blur(8px)", paddingTop: "max(12px, env(safe-area-inset-top))", paddingBottom: 12 }}
+          style={{ backgroundColor: C.bg + "f2", backdropFilter: "blur(8px)", paddingTop: "calc(env(safe-area-inset-top) + 22px)", paddingBottom: 12 }}
         >
           <img src="/wordmark.png" alt="BarbaPlant" style={{ height: 30, width: "auto" }} />
         </header>
@@ -1537,7 +1428,7 @@ function LivelloPollice({ piante, analisi }) {
           style={{ width: percentuale + "%", backgroundColor: C.salute, transition: "width 700ms ease" }}
         />
       </div>
-      <p className="text-xs mt-2" style={{ color: C.soft }}>
+      <p className="text-sm mt-2" style={{ color: C.soft }}>
         {prossimo
           ? `Ancora ${prossimo.min - punti} punti per diventare ${prossimo.nome}. Ogni pianta seguita vale 3 punti, ogni analisi 2.`
           : "Hai raggiunto il livello massimo. Le tue piante ringraziano."}
@@ -1604,7 +1495,7 @@ function GuidePratiche() {
             </span>
           </button>
           {aperta === i && (
-            <p className="px-3 pb-4 text-sm leading-relaxed" style={{ color: C.soft }}>{g.testo}</p>
+            <p className="px-3 pb-4 text-base leading-relaxed" style={{ color: C.soft }}>{g.testo}</p>
           )}
         </div>
       ))}
@@ -1691,15 +1582,15 @@ function ModaleAggiungi({ onChiudi, onSalva, leggiFile }) {
           </button>
           <div className="flex-1">
             {analizzando ? (
-              <p className="text-xs font-semibold" style={{ color: C.primario }}>Riconoscimento della pianta in corso…</p>
+              <p className="text-sm font-semibold" style={{ color: C.primario }}>Riconoscimento della pianta in corso…</p>
             ) : diagnosiRaccolta ? (
-              <p className="text-xs font-semibold" style={{ color: C.salute }}>
+              <p className="text-sm font-semibold" style={{ color: C.salute }}>
                 Riconosciuta: {diagnosiRaccolta.nomeComune}. Puoi correggere i campi qui sotto.
               </p>
             ) : (
               <>
                 <p className="text-xs" style={{ color: C.soft }}>Foto (facoltativa)</p>
-                <p className="text-xs mt-1" style={{ color: C.soft }}>Con una foto la pianta viene riconosciuta in automatico.</p>
+                <p className="text-sm mt-1" style={{ color: C.soft }}>Con una foto la pianta viene riconosciuta in automatico.</p>
               </>
             )}
             <div className="flex gap-2 mt-2 flex-wrap">
@@ -1792,10 +1683,10 @@ function DettaglioPianta({ pianta, stagione, onChiudi, onAggiorna, onElimina, le
         diagnosi: esito,
         storico: [
           ...pianta.storico,
-          { data: oggiISO(), tipo: "analisi", salute: esito.salute, nota: esito.sintesi || "Nuova analisi con foto." },
+          { data: oggiISO(), tipo: "analisi", salute: esito.salute, nota: esito.sintesi || "Nuova analisi con foto.", foto: dataUrl },
         ],
       });
-      setVista("cura");
+      setVista("evoluzione");
     } catch (err) {
       setErrore(err.message);
     } finally {
@@ -1904,7 +1795,7 @@ function DettaglioPianta({ pianta, stagione, onChiudi, onAggiorna, onElimina, le
             style={{ width: 38, height: 38, backgroundColor: C.card, color: C.allerta }}
             aria-label="Rimuovi dalla collezione"
           >
-            <IcoCestino s={17} />
+            <IcoCestino s={20} />
           </button>
         </div>
 
@@ -1914,7 +1805,7 @@ function DettaglioPianta({ pianta, stagione, onChiudi, onAggiorna, onElimina, le
               <p className="text-sm font-semibold" style={{ color: C.testo }}>
                 Rimuovere {pianta.nome} dalla collezione?
               </p>
-              <p className="text-xs mt-1" style={{ color: C.soft }}>Il registro va perso e non si recupera.</p>
+              <p className="text-sm mt-1" style={{ color: C.soft }}>Il registro va perso e non si recupera.</p>
               <div className="flex gap-2 mt-3">
                 <Bottone variante="vuoto" onClick={() => setConfermaEliminazione(false)} className="flex-1">
                   Tieni la pianta
@@ -1959,7 +1850,7 @@ function DettaglioPianta({ pianta, stagione, onChiudi, onAggiorna, onElimina, le
                     <div className="flex items-center gap-2">
                       <h2 className="text-xl font-bold leading-tight truncate" style={{ color: C.testo }}>{pianta.nome}</h2>
                       <button onClick={apriModifica} aria-label="Modifica nome e specie" style={{ color: C.soft }}>
-                        <IcoMatita s={15} />
+                        <IcoMatita s={18} />
                       </button>
                     </div>
                     <p className="text-xs italic" style={{ color: C.soft }}>{pianta.specie}</p>
@@ -1996,6 +1887,7 @@ function DettaglioPianta({ pianta, stagione, onChiudi, onAggiorna, onElimina, le
           <div className="flex gap-2 mt-4">
             {[
               { id: "cura", t: "Piano di cura" },
+              { id: "evoluzione", t: "Evoluzione" },
               { id: "storia", t: "Registro" },
             ].map((v) => (
               <button
@@ -2021,16 +1913,22 @@ function DettaglioPianta({ pianta, stagione, onChiudi, onAggiorna, onElimina, le
                 <Card className="p-6 text-center">
                   <p className="text-3xl">🔍</p>
                   <p className="text-sm font-bold mt-2" style={{ color: C.testo }}>Nessuna diagnosi ancora</p>
-                  <p className="text-xs mt-1" style={{ color: C.soft }}>
+                  <p className="text-sm mt-1" style={{ color: C.soft }}>
                     Scatta una foto per ottenere identificazione, stato di salute e piano di cura.
                   </p>
                 </Card>
               )
+            ) : vista === "evoluzione" ? (
+              <Evoluzione
+                pianta={pianta}
+                onScatta={() => inputNuovaFoto.current && inputNuovaFoto.current.click()}
+                caricamento={caricamento && azione === "analisi"}
+              />
             ) : (
               <div className="space-y-3">
                 <Card className="p-5">
                   <p className="text-sm font-bold" style={{ color: C.testo }}>Aggiorna lo stato</p>
-                  <p className="text-xs mt-1" style={{ color: C.soft }}>
+                  <p className="text-sm mt-1" style={{ color: C.soft }}>
                     Sposta il cursore se noti un miglioramento o un peggioramento: il valore finisce nel registro.
                   </p>
                   <input
@@ -2079,7 +1977,7 @@ function DettaglioPianta({ pianta, stagione, onChiudi, onAggiorna, onElimina, le
                             <p className="text-xs font-semibold" style={{ color: C.soft }}>{dataLeggibile(s.data)}</p>
                             <span className="text-xs font-bold" style={{ color: coloreSalute(s.salute) }}>{s.salute}%</span>
                           </div>
-                          <p className="text-sm mt-1 leading-relaxed" style={{ color: C.testo }}>{s.nota}</p>
+                          <p className="text-base mt-1 leading-relaxed" style={{ color: C.testo }}>{s.nota}</p>
                         </div>
                       </div>
                     ))}
@@ -2090,6 +1988,106 @@ function DettaglioPianta({ pianta, stagione, onChiudi, onAggiorna, onElimina, le
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ---------------------- 10. EVOLUZIONE (confronto foto nel tempo) ---------------------- */
+
+function Evoluzione({ pianta, onScatta, caricamento }) {
+  const fotoStorico = pianta.storico.filter((s) => s.foto);
+  const [indicePrima, setIndicePrima] = useState(0);
+
+  if (fotoStorico.length < 2) {
+    return (
+      <Card className="p-6 text-center">
+        <p className="text-3xl">📈</p>
+        <p className="text-sm font-bold mt-2" style={{ color: C.testo }}>Ancora poche foto per confrontare</p>
+        <p className="text-sm mt-1" style={{ color: C.soft }}>
+          Scatta una nuova foto con "Nuova analisi": la confrontiamo con quella di partenza per capire se la cura sta funzionando.
+        </p>
+        <div className="mt-4 flex justify-center">
+          <Bottone onClick={onScatta} disabled={caricamento} className="flex items-center justify-center gap-2">
+            {caricamento ? <Spinner /> : "🔍"} Nuova analisi
+          </Bottone>
+        </div>
+      </Card>
+    );
+  }
+
+  const prima = fotoStorico[Math.min(indicePrima, fotoStorico.length - 2)];
+  const ora = fotoStorico[fotoStorico.length - 1];
+  const delta = ora.salute - prima.salute;
+  const giorni = Math.round((new Date(ora.data + "T00:00:00") - new Date(prima.data + "T00:00:00")) / 86400000);
+
+  return (
+    <div className="space-y-3">
+      <Card className="p-5">
+        <p className="text-sm font-bold" style={{ color: C.testo }}>Prima e ora a confronto</p>
+        <p className="text-sm mt-1" style={{ color: C.soft }}>
+          {giorni > 0 ? `${giorni} ${giorni === 1 ? "giorno" : "giorni"} di distanza tra le due foto.` : "Foto dello stesso giorno."}
+        </p>
+
+        <div className="grid grid-cols-2 gap-3 mt-3">
+          <div>
+            <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${C.bordo}` }}>
+              <img src={prima.foto} alt="Prima" className="w-full object-cover" style={{ height: 150 }} />
+            </div>
+            <p className="text-xs font-semibold mt-2" style={{ color: C.soft }}>Prima · {dataLeggibile(prima.data)}</p>
+            <p className="text-sm font-bold" style={{ color: coloreSalute(prima.salute) }}>{prima.salute}%</p>
+          </div>
+          <div>
+            <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${C.bordo}` }}>
+              <img src={ora.foto} alt="Ora" className="w-full object-cover" style={{ height: 150 }} />
+            </div>
+            <p className="text-xs font-semibold mt-2" style={{ color: C.soft }}>Ora · {dataLeggibile(ora.data)}</p>
+            <p className="text-sm font-bold" style={{ color: coloreSalute(ora.salute) }}>{ora.salute}%</p>
+          </div>
+        </div>
+
+        <div
+          className="rounded-2xl px-4 py-3 mt-3 text-base font-semibold text-center"
+          style={{
+            backgroundColor: (delta >= 0 ? C.salute : C.allerta) + "14",
+            color: delta >= 0 ? C.salute : C.allerta,
+          }}
+        >
+          {delta > 0 && `La cura funziona: salute +${delta} punti`}
+          {delta === 0 && "Salute stabile: nessun cambiamento"}
+          {delta < 0 && `In peggioramento: salute ${delta} punti, valuta di cambiare strategia`}
+        </div>
+
+        <Bottone onClick={onScatta} disabled={caricamento} className="w-full mt-3 flex items-center justify-center gap-2">
+          {caricamento ? <Spinner /> : "📸"} Scatta una nuova foto di controllo
+        </Bottone>
+      </Card>
+
+      {fotoStorico.length > 2 && (
+        <Card className="p-4">
+          <p className="text-xs font-bold uppercase tracking-wide mb-3" style={{ color: C.soft }}>
+            Scegli un altro punto di partenza
+          </p>
+          <div className="flex gap-3 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+            {fotoStorico.slice(0, -1).map((s, i) => (
+              <button key={i} onClick={() => setIndicePrima(i)} className="shrink-0 text-center">
+                <div
+                  className="rounded-2xl overflow-hidden"
+                  style={{
+                    width: 64,
+                    height: 64,
+                    border: `2px solid ${i === indicePrima ? C.primario : C.bordo}`,
+                  }}
+                >
+                  <img src={s.foto} alt="" className="w-full h-full object-cover" />
+                </div>
+                <p className="text-xs mt-1" style={{ color: i === indicePrima ? C.primario : C.soft }}>
+                  {dataLeggibile(s.data).split(" ").slice(0, 2).join(" ")}
+                </p>
+              </button>
+            ))}
+          </div>
+        </Card>
+      )}
     </div>
   );
 }
