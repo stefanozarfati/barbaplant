@@ -204,12 +204,14 @@ function scriviArchivio(dati) {
 }
 
 /* Riduce la foto prima di spedirla: gli scatti da telefono sono troppo pesanti. */
+/* Ridisegna sempre su canvas e riesporta in JPEG: così anche formati che il browser
+   legge ma che <img> non renderizza in modo affidabile (es. HEIC su alcuni telefoni)
+   arrivano all'anteprima già in un formato che si vede per certo. */
 function ridimensiona(dataUrl, latoMax = 1024, qualita = 0.82) {
-  return new Promise((risolvi) => {
+  return new Promise((risolvi, rifiuta) => {
     const img = new Image();
     img.onload = () => {
       const scala = Math.min(1, latoMax / Math.max(img.width, img.height));
-      if (scala === 1 && dataUrl.length < 900000) return risolvi(dataUrl);
       const tela = document.createElement("canvas");
       tela.width = Math.round(img.width * scala);
       tela.height = Math.round(img.height * scala);
@@ -218,10 +220,10 @@ function ridimensiona(dataUrl, latoMax = 1024, qualita = 0.82) {
       try {
         risolvi(tela.toDataURL("image/jpeg", qualita));
       } catch {
-        risolvi(dataUrl);
+        rifiuta(new Error("Non è stato possibile elaborare questa foto."));
       }
     };
-    img.onerror = () => risolvi(dataUrl);
+    img.onerror = () => rifiuta(new Error("Formato foto non supportato dal browser. Prova con un'altra foto (JPG o PNG)."));
     img.src = dataUrl;
   });
 }
@@ -880,7 +882,7 @@ function SchermataApertura({ visibile }) {
       <img
         src="/volto-apertura.png"
         alt=""
-        style={{ width: 190, height: 190, objectFit: "contain" }}
+        style={{ width: 228, height: 228, objectFit: "contain" }}
       />
       <img src="/icona-180.png" alt="BarbaPlant" style={{ width: 138, height: 138, borderRadius: 14, boxShadow: "0 2px 10px #00000022" }} />
     </div>
@@ -1047,7 +1049,7 @@ export default function App() {
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-3xl font-extrabold leading-tight" style={{ color: C.testo }}>
-          Le nostre piante
+          Osserviamo il verde
         </h1>
         <button
           onClick={() => setModaleAggiungi(true)}
@@ -1062,26 +1064,16 @@ export default function App() {
       <Card className="overflow-hidden">
         <div className="relative" style={{ height: 260, backgroundColor: C.velo }}>
           {fotoCorrente ? (
-            <img src={fotoCorrente} alt="Foto da analizzare" className="w-full h-full object-cover" />
+            <img
+              key={fotoCorrente}
+              src={fotoCorrente}
+              alt="Foto da analizzare"
+              className="w-full h-full object-cover"
+              onError={() => setErrore("L'anteprima di questa foto non si è caricata. Prova a sceglierne un'altra.")}
+            />
           ) : (
-            <>
-              {/* segnaposto: sostituito dalla foto scattata/scelta finché non ce n'è una */}
-              <img
-                src="/foto-segnaposto.png"
-                alt=""
-                className="w-full h-full object-cover"
-                style={{
-                  maskImage: "radial-gradient(ellipse at center, #000 40%, transparent 90%)",
-                  WebkitMaskImage: "radial-gradient(ellipse at center, #000 40%, transparent 90%)",
-                }}
-                onError={(e) => { e.currentTarget.style.display = "none"; }}
-              />
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8 pointer-events-none">
-                <IcoFoglia s={28} />
-                <p className="text-sm font-bold mt-2" style={{ color: C.testo }}>Nessuna foto ancora</p>
-                <p className="text-sm mt-1" style={{ color: C.soft }}>Scatta o scegli una foto per riconoscere la pianta.</p>
-              </div>
-            </>
+            /* segnaposto: sostituito dalla foto scattata/scelta finché non ce n'è una */
+            <img src="/albero-iniziale.png" alt="" className="w-full h-full object-cover" />
           )}
         </div>
 
