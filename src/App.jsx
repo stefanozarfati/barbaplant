@@ -881,7 +881,7 @@ function SchermataApertura({ visibile }) {
         opacity: visibile ? 1 : 0,
         pointerEvents: visibile ? "auto" : "none",
         transition: "opacity 380ms ease",
-        animation: "bp-apertura 1000ms ease forwards",
+        animation: "bp-apertura 2000ms ease forwards",
       }}
     >
       <style>{`
@@ -907,7 +907,7 @@ export default function App() {
   const [mostraApertura, setMostraApertura] = useState(true);
 
   useEffect(() => {
-    const t = setTimeout(() => setMostraApertura(false), 1000);
+    const t = setTimeout(() => setMostraApertura(false), 2000);
     return () => clearTimeout(t);
   }, []);
 
