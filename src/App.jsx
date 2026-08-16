@@ -598,6 +598,18 @@ const IcoPiu = (p) => (
     <path d="M12 5v14M5 12h14" />
   </Svg>
 );
+const IcoMatita = (p) => (
+  <Svg {...p}>
+    <path d="M16.5 3.5l4 4L7 21l-4.6.8L3.2 17z" />
+    <path d="M14.5 5.5l4 4" />
+  </Svg>
+);
+const IcoCestino = (p) => (
+  <Svg {...p}>
+    <path d="M4 7h16M9 7V4.8c0-.7.6-1.3 1.3-1.3h3.4c.7 0 1.3.6 1.3 1.3V7M6 7l1 13.2c.1.9.9 1.6 1.8 1.6h6.4c.9 0 1.7-.7 1.8-1.6L18 7" />
+    <path d="M10 11v6M14 11v6" />
+  </Svg>
+);
 const IcoLibro = (p) => (
   <Svg {...p}>
     <path d="M4 5.6A2.1 2.1 0 0 1 6.1 3.5H19v14H6.1A2.1 2.1 0 0 0 4 19.6z" />
@@ -1040,8 +1052,13 @@ export default function App() {
       foto: dati.foto,
       salute: dati.salute,
       dataAggiunta: oggiISO(),
-      diagnosi: null,
-      storico: [{ data: oggiISO(), tipo: "aggiunta", salute: dati.salute, nota: dati.nota || "Inserita manualmente." }],
+      diagnosi: dati.diagnosi || null,
+      storico: [{
+        data: oggiISO(),
+        tipo: "aggiunta",
+        salute: dati.salute,
+        nota: dati.nota || (dati.diagnosi ? "Aggiunta e riconosciuta con l'IA." : "Inserita manualmente."),
+      }],
     };
     setPiante((p) => [nuova, ...p]);
     setModaleAggiungi(false);
@@ -1429,8 +1446,8 @@ export default function App() {
       <div className="mx-auto w-full" style={{ maxWidth: 450 }}>
         {/* intestazione */}
         <header
-          className="sticky top-0 z-20 px-5 py-3 flex items-center justify-center"
-          style={{ backgroundColor: C.bg + "f2", backdropFilter: "blur(8px)" }}
+          className="sticky top-0 z-20 px-5 flex items-center justify-center"
+          style={{ backgroundColor: C.bg + "f2", backdropFilter: "blur(8px)", paddingTop: "max(12px, env(safe-area-inset-top))", paddingBottom: 12 }}
         >
           <img src="/wordmark.png" alt="BarbaPlant" style={{ height: 30, width: "auto" }} />
         </header>
@@ -1444,7 +1461,7 @@ export default function App() {
       </div>
 
       {/* navigazione fissa */}
-      <nav className="fixed bottom-0 left-0 right-0 z-30" style={{ backgroundColor: C.card, borderTop: `1px solid ${C.bordo}` }}>
+      <nav className="fixed bottom-0 left-0 right-0 z-30" style={{ backgroundColor: C.card, borderTop: `1px solid ${C.bordo}`, paddingBottom: "env(safe-area-inset-bottom)" }}>
         <div className="mx-auto flex" style={{ maxWidth: 450 }}>
           {SCHEDE.map((s) => {
             const attiva = scheda === s.id;
@@ -1605,6 +1622,8 @@ function ModaleAggiungi({ onChiudi, onSalva, leggiFile }) {
   const [emoji, setEmoji] = useState("🪴");
   const [foto, setFoto] = useState(null);
   const [errore, setErrore] = useState("");
+  const [analizzando, setAnalizzando] = useState(false);
+  const [diagnosiRaccolta, setDiagnosiRaccolta] = useState(null);
   const inputFoto = useRef(null);
 
   async function scegliFoto(e) {
@@ -1612,13 +1631,35 @@ function ModaleAggiungi({ onChiudi, onSalva, leggiFile }) {
     e.target.value = "";
     if (!file) return;
     if (!file.type.startsWith("image/")) { setErrore("Serve un'immagine JPG o PNG."); return; }
-    try { setFoto(await ridimensiona(await leggiFile(file))); setErrore(""); }
-    catch { setErrore("Lettura del file non riuscita. Prova con un'altra foto."); }
+    let dataUrl;
+    try {
+      dataUrl = await ridimensiona(await leggiFile(file));
+      setFoto(dataUrl);
+      setDiagnosiRaccolta(null);
+      setErrore("");
+    } catch {
+      setErrore("Lettura del file non riuscita. Prova con un'altra foto.");
+      return;
+    }
+
+    // analisi automatica: la foto appena scelta viene riconosciuta subito, come in Bacheca
+    setAnalizzando(true);
+    try {
+      const esito = await analizzaFoto(dataUrl);
+      setDiagnosiRaccolta(esito);
+      setNome((v) => v.trim() ? v : esito.nomeComune);
+      setSpecie((v) => v.trim() ? v : esito.nomeScientifico);
+      setSalute(esito.salute);
+    } catch (err) {
+      setErrore("Riconoscimento non riuscito (" + err.message + "). Puoi comunque compilare a mano.");
+    } finally {
+      setAnalizzando(false);
+    }
   }
 
   function invia() {
     if (!nome.trim()) { setErrore("Dai un nome alla pianta: ti servirà per ritrovarla."); return; }
-    onSalva({ nome: nome.trim(), specie: specie.trim(), nota: nota.trim(), salute, emoji, foto });
+    onSalva({ nome: nome.trim(), specie: specie.trim(), nota: nota.trim(), salute, emoji, foto, diagnosi: diagnosiRaccolta });
   }
 
   return (
@@ -1638,14 +1679,29 @@ function ModaleAggiungi({ onChiudi, onSalva, leggiFile }) {
         <div className="flex items-center gap-3">
           <button
             onClick={() => inputFoto.current && inputFoto.current.click()}
-            className="rounded-2xl flex items-center justify-center overflow-hidden shrink-0"
+            className="rounded-2xl flex items-center justify-center overflow-hidden shrink-0 relative"
             style={{ width: 84, height: 84, backgroundColor: C.velo, border: `1px dashed ${C.primario}` }}
           >
             {foto ? <img src={foto} alt="Anteprima" className="w-full h-full object-cover" /> : <span className="text-2xl">📷</span>}
+            {analizzando && (
+              <span className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: "#00000055" }}>
+                <Spinner dimensione={22} />
+              </span>
+            )}
           </button>
           <div className="flex-1">
-            <p className="text-xs" style={{ color: C.soft }}>Foto (facoltativa)</p>
-            <p className="text-xs mt-1" style={{ color: C.soft }}>Senza foto viene usata l'emoji che scegli qui sotto.</p>
+            {analizzando ? (
+              <p className="text-xs font-semibold" style={{ color: C.primario }}>Riconoscimento della pianta in corso…</p>
+            ) : diagnosiRaccolta ? (
+              <p className="text-xs font-semibold" style={{ color: C.salute }}>
+                Riconosciuta: {diagnosiRaccolta.nomeComune}. Puoi correggere i campi qui sotto.
+              </p>
+            ) : (
+              <>
+                <p className="text-xs" style={{ color: C.soft }}>Foto (facoltativa)</p>
+                <p className="text-xs mt-1" style={{ color: C.soft }}>Con una foto la pianta viene riconosciuta in automatico.</p>
+              </>
+            )}
             <div className="flex gap-2 mt-2 flex-wrap">
               {["🪴", "🌿", "🌵", "🌱", "🌺", "🍋"].map((e) => (
                 <button
@@ -1680,7 +1736,7 @@ function ModaleAggiungi({ onChiudi, onSalva, leggiFile }) {
 
         <div className="flex gap-2 pt-1">
           <Bottone variante="vuoto" onClick={onChiudi} className="flex-1">Annulla</Bottone>
-          <Bottone onClick={invia} className="flex-1">Salva nella collezione</Bottone>
+          <Bottone onClick={invia} disabled={analizzando} className="flex-1">Salva nella collezione</Bottone>
         </div>
       </div>
     </div>
@@ -1805,6 +1861,22 @@ function DettaglioPianta({ pianta, stagione, onChiudi, onAggiorna, onElimina, le
     });
   }
 
+  const [modificaAperta, setModificaAperta] = useState(false);
+  const [nomeModifica, setNomeModifica] = useState(pianta.nome);
+  const [specieModifica, setSpecieModifica] = useState(pianta.specie);
+
+  function apriModifica() {
+    setNomeModifica(pianta.nome);
+    setSpecieModifica(pianta.specie);
+    setModificaAperta(true);
+  }
+  function salvaModifica() {
+    const nome = nomeModifica.trim();
+    if (!nome) return;
+    onAggiorna(pianta.id, { nome, specie: specieModifica.trim() || pianta.specie });
+    setModificaAperta(false);
+  }
+
   const iconaEvento = { aggiunta: "🌱", analisi: "🔍", nota: "✏️", stagione: "🔄", controllo: "📋" };
 
   return (
@@ -1826,17 +1898,76 @@ function DettaglioPianta({ pianta, stagione, onChiudi, onAggiorna, onElimina, le
           >
             ←
           </button>
+          <button
+            onClick={() => setConfermaEliminazione(true)}
+            className="absolute top-4 right-4 rounded-full flex items-center justify-center shadow-sm"
+            style={{ width: 38, height: 38, backgroundColor: C.card, color: C.allerta }}
+            aria-label="Rimuovi dalla collezione"
+          >
+            <IcoCestino s={17} />
+          </button>
         </div>
 
         <div className="px-5 pb-24 -mt-8 relative">
+          {confermaEliminazione && (
+            <Card className="p-5 mb-3" style={{ borderColor: C.allerta }}>
+              <p className="text-sm font-semibold" style={{ color: C.testo }}>
+                Rimuovere {pianta.nome} dalla collezione?
+              </p>
+              <p className="text-xs mt-1" style={{ color: C.soft }}>Il registro va perso e non si recupera.</p>
+              <div className="flex gap-2 mt-3">
+                <Bottone variante="vuoto" onClick={() => setConfermaEliminazione(false)} className="flex-1">
+                  Tieni la pianta
+                </Bottone>
+                <button
+                  onClick={() => onElimina(pianta.id)}
+                  className="flex-1 rounded-2xl px-4 py-3 text-sm font-semibold"
+                  style={{ backgroundColor: C.allerta, color: "#fff" }}
+                >
+                  Rimuovi
+                </button>
+              </div>
+            </Card>
+          )}
+
           <Card className="p-5">
             <div className="flex items-start gap-4">
               <div className="flex-1 min-w-0">
-                <h2 className="text-xl font-bold leading-tight" style={{ color: C.testo }}>{pianta.nome}</h2>
-                <p className="text-xs italic" style={{ color: C.soft }}>{pianta.specie}</p>
-                <p className="text-xs mt-2" style={{ color: C.soft }}>
-                  Nella collezione dal {dataLeggibile(pianta.dataAggiunta)}
-                </p>
+                {modificaAperta ? (
+                  <div className="space-y-2">
+                    <input
+                      value={nomeModifica}
+                      onChange={(e) => setNomeModifica(e.target.value)}
+                      placeholder="Nome della pianta"
+                      className="w-full rounded-xl px-3 py-2 text-sm font-bold outline-none"
+                      style={{ backgroundColor: C.velo, color: C.testo, border: `1px solid ${C.bordo}` }}
+                    />
+                    <input
+                      value={specieModifica}
+                      onChange={(e) => setSpecieModifica(e.target.value)}
+                      placeholder="Specie"
+                      className="w-full rounded-xl px-3 py-2 text-xs italic outline-none"
+                      style={{ backgroundColor: C.velo, color: C.testo, border: `1px solid ${C.bordo}` }}
+                    />
+                    <div className="flex gap-2 pt-1">
+                      <Bottone onClick={salvaModifica} className="flex-1">Salva</Bottone>
+                      <Bottone variante="vuoto" onClick={() => setModificaAperta(false)} className="flex-1">Annulla</Bottone>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-xl font-bold leading-tight truncate" style={{ color: C.testo }}>{pianta.nome}</h2>
+                      <button onClick={apriModifica} aria-label="Modifica nome e specie" style={{ color: C.soft }}>
+                        <IcoMatita s={15} />
+                      </button>
+                    </div>
+                    <p className="text-xs italic" style={{ color: C.soft }}>{pianta.specie}</p>
+                    <p className="text-xs mt-2" style={{ color: C.soft }}>
+                      Nella collezione dal {dataLeggibile(pianta.dataAggiunta)}
+                    </p>
+                  </>
+                )}
               </div>
               <AnelloSalute valore={pianta.salute} dimensione={78} spessore={7} />
             </div>
@@ -1953,37 +2084,6 @@ function DettaglioPianta({ pianta, stagione, onChiudi, onAggiorna, onElimina, le
                       </div>
                     ))}
                   </div>
-                </Card>
-
-                <Card className="p-5">
-                  {confermaEliminazione ? (
-                    <div>
-                      <p className="text-sm font-semibold" style={{ color: C.testo }}>
-                        Rimuovere {pianta.nome} dalla collezione?
-                      </p>
-                      <p className="text-xs mt-1" style={{ color: C.soft }}>Il registro va perso e non si recupera.</p>
-                      <div className="flex gap-2 mt-3">
-                        <Bottone variante="vuoto" onClick={() => setConfermaEliminazione(false)} className="flex-1">
-                          Tieni la pianta
-                        </Bottone>
-                        <button
-                          onClick={() => onElimina(pianta.id)}
-                          className="flex-1 rounded-2xl px-4 py-3 text-sm font-semibold"
-                          style={{ backgroundColor: C.allerta, color: "#fff" }}
-                        >
-                          Rimuovi
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => setConfermaEliminazione(true)}
-                      className="text-sm font-semibold"
-                      style={{ color: C.allerta }}
-                    >
-                      Rimuovi dalla collezione
-                    </button>
-                  )}
                 </Card>
               </div>
             )}
