@@ -402,7 +402,16 @@ async function chiamaModello(contenuto) {
 }
 
 /* Quando l'app e' pubblicata online, la chiave sta sul server: qui non serve. */
-let SERVER_DISPONIBILE = true;
+let SERVER_IN_PAUSA_FINO_A = 0;
+
+/* Se il server non risponde (rete instabile, foto pesante) non lo abbandoniamo
+   per sempre: lo mettiamo in pausa venti secondi e poi si riprova da soli. */
+function serverDisponibile() {
+  return Date.now() > SERVER_IN_PAUSA_FINO_A;
+}
+function mettiInPausaIlServer() {
+  SERVER_IN_PAUSA_FINO_A = Date.now() + 20000;
+}
 
 async function chiamaServer(corpo) {
   const risposta = await fetch("/api/analizza", {
@@ -470,7 +479,7 @@ function normalizza(json, stagione) {
     curaProfessionale: lista(json.curaProfessionale),
     consiglioStagionale: json.consiglioStagionale || STAGIONI[stagione].claim,
     simulata: false,
-    motore: SERVER_DISPONIBILE ? "Gemini" : CFG.proxy ? "Claude" : CFG.chiave ? "Gemini" : "Claude",
+    motore: serverDisponibile() ? "Gemini" : CFG.proxy ? "Claude" : CFG.chiave ? "Gemini" : "Claude",
   };
 }
 
@@ -482,11 +491,11 @@ async function unTentativo(dataUrl, contesto) {
 
   let testo;
 
-  if (SERVER_DISPONIBILE) {
+  if (serverDisponibile()) {
     try {
       testo = await chiamaServer({ tipo: "diagnosi", immagine: base64, mediaType, contesto, stagione });
     } catch (e) {
-      SERVER_DISPONIBILE = false;
+      mettiInPausaIlServer();
     }
   }
 
@@ -526,13 +535,13 @@ async function analizzaFoto(dataUrl, contesto = "") {
 }
 
 async function ricalibraStagione(pianta, stagione) {
-  if (SERVER_DISPONIBILE) {
+  if (serverDisponibile()) {
     try {
       const t = await chiamaServer({ tipo: "stagione", pianta: { nome: pianta.nome, specie: pianta.specie, salute: pianta.salute }, stagione });
       const j = estraiJSON(t);
       if (j) return j;
     } catch (e) {
-      SERVER_DISPONIBILE = false;
+      mettiInPausaIlServer();
     }
   }
   const testo = await chiamaTesto(
@@ -568,7 +577,7 @@ async function chiediSicurezza(dataUrl, nome, specie) {
   const mediaType = dataUrl.slice(5, dataUrl.indexOf(";"));
   const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
 
-  if (SERVER_DISPONIBILE) {
+  if (serverDisponibile()) {
     try {
       const t = await chiamaServer({
         tipo: "sicurezza",
@@ -579,7 +588,7 @@ async function chiediSicurezza(dataUrl, nome, specie) {
       const j = estraiJSON(t);
       if (j) return j;
     } catch (e) {
-      SERVER_DISPONIBILE = false;
+      mettiInPausaIlServer();
     }
   }
 
@@ -897,7 +906,7 @@ function BloccoSicurezza({ foto, diagnosi }) {
   if (!dati) {
     return (
       <div className="rounded-2xl p-4" style={{ backgroundColor: C.velo, border: `1px solid ${C.bordo}` }}>
-        <p className="text-base font-bold" style={{ color: C.testo }}>Si può mangiare? È tossica?</p>
+        <p className="text-base font-bold" style={{ color: C.testo }}>Commestibilità e proprietà</p>
         <p className="text-sm mt-1 leading-relaxed" style={{ color: C.soft }}>
           Commestibilità parte per parte, rischi per persone e animali, sosia pericolosi e usi tradizionali.
         </p>
@@ -907,7 +916,7 @@ function BloccoSicurezza({ foto, diagnosi }) {
           disabled={caricamento}
           className="w-full mt-3 flex items-center justify-center gap-2"
         >
-          {caricamento ? <><Spinner /> Sto controllando…</> : "Apri la scheda sicurezza"}
+          {caricamento ? <><Spinner /> Sto controllando…</> : "Approfondisci"}
         </Bottone>
         {errore && <p className="text-sm mt-2" style={{ color: C.allerta }}>{errore}</p>}
       </div>
