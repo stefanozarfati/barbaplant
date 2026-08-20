@@ -77,10 +77,9 @@ const SCHEMA_SICUREZZA = {
       properties: {
         livello: { type: "STRING" },
         persone: { type: "STRING" },
-        animali: { type: "STRING" },
         partiTossiche: { type: "STRING" },
       },
-      required: ["livello", "persone", "animali"],
+      required: ["livello", "persone"],
     },
     commestibilita: {
       type: "ARRAY",
@@ -128,7 +127,6 @@ Regole obbligatorie:
 - "certezza": intero 0-100, quanto sei sicuro della specie basandoti solo sulla foto. Sii severo: se vedi poche foglie o manca il fiore, abbassa il valore.
 - "specieConfermata": il nome scientifico che ritieni corretto, anche se diverso da quello proposto.
 - "tossicita.livello": una parola fra nessuna, lieve, media, alta.
-- "tossicita.animali": rischio per cani e gatti.
 - "commestibilita": una voce per parte (foglie, fiori, frutti, semi, radici, fusto). "stato" e' una fra: commestibile, solo cotta, non commestibile, tossica.
 - "sosia": specie con cui si confonde, con il segno pratico che le distingue. Se esiste un sosia velenoso mettilo per primo. Se non ce ne sono, lista vuota.
 - "usiTradizionali": uso storico o popolare (tisane, decotti, impacchi, succo fresco, cucina). Scrivi sempre "usata tradizionalmente per", mai "cura" o "guarisce" una malattia.

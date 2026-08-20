@@ -19,14 +19,14 @@ import React, { useState, useRef, useMemo, useEffect } from "react";
 
 const C = {
   bg: "#f4f6f0",       // sfondo salvia chiarissimo
-  testo: "#2d3b2d",    // testo scuro
+  testo: "#1e2a1e",    // testo scuro
   primario: "#879b7d", // verde salvia
   salute: "#2e7d32",   // accento stato di salute
   card: "#ffffff",
-  soft: "#6b7a68",     // testo secondario
+  soft: "#4a5748",     // testo secondario
   bordo: "#e4e9dd",
   velo: "#eef2e8",     // riempimenti tenui
-  allerta: "#b3541e",  // avvisi / errori
+  allerta: "#9a4416",  // avvisi / errori
   oro: "#c9a227",      // livello profilo
 };
 
@@ -561,10 +561,9 @@ function promptSicurezza(nome, specie) {
   return `Sei un botanico ed etnobotanico. Nella foto dovrebbe esserci "${nome || "pianta non identificata"}" (${specie || "specie ignota"}).
 Verifica tu stesso l'identificazione guardando la foto, poi compila la scheda di sicurezza.
 Rispondi SOLO con JSON valido, in italiano, senza backtick, senza testo prima o dopo:
-{"certezza":0,"specieConfermata":"","tossicita":{"livello":"nessuna|lieve|media|alta","persone":"","animali":"","partiTossiche":""},"commestibilita":[{"parte":"","stato":"commestibile|solo cotta|non commestibile|tossica","nota":""}],"sosia":[{"nome":"","comeDistinguerlo":""}],"usiTradizionali":[{"titolo":"","dettaglio":"","preparazione":""}],"cautele":[""]}
+{"certezza":0,"specieConfermata":"","tossicita":{"livello":"nessuna|lieve|media|alta","persone":"","partiTossiche":""},"commestibilita":[{"parte":"","stato":"commestibile|solo cotta|non commestibile|tossica","nota":""}],"sosia":[{"nome":"","comeDistinguerlo":""}],"usiTradizionali":[{"titolo":"","dettaglio":"","preparazione":""}],"cautele":[""]}
 Regole obbligatorie:
 - "certezza" e' un intero 0-100. Sii severo: se vedi poche foglie o manca il fiore, abbassa il valore.
-- "tossicita.animali" riguarda cani e gatti.
 - In "sosia" metti per primo l'eventuale sosia velenoso, con il segno pratico che lo distingue. Se non ce ne sono, lista vuota.
 - In "usiTradizionali" scrivi sempre "usata tradizionalmente per", mai "cura" o "guarisce".
 - In "preparazione" spiega come si prepara (infuso, decotto, impacco, succo fresco). Metti le quantita' SOLO se la tossicita' e' nessuna o lieve; se e' media o alta scrivi "nessuna dose indicata: pianta tossica".
@@ -955,7 +954,6 @@ function BloccoSicurezza({ foto, diagnosi }) {
           <Etichetta testo={tox.livello || "da verificare"} colore={coloreLivello(tox.livello)} />
         </div>
         {tox.persone && <p className="text-sm mt-2" style={{ color: C.soft }}><strong style={{ color: C.testo }}>Persone:</strong> {tox.persone}</p>}
-        {tox.animali && <p className="text-sm mt-1" style={{ color: C.soft }}><strong style={{ color: C.testo }}>Cani e gatti:</strong> {tox.animali}</p>}
         {tox.partiTossiche && <p className="text-sm mt-1" style={{ color: C.soft }}><strong style={{ color: C.testo }}>Parti da evitare:</strong> {tox.partiTossiche}</p>}
       </div>
 
