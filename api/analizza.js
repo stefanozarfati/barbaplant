@@ -67,6 +67,77 @@ const SCHEMA_STAGIONE = {
   required: ["consiglioStagionale", "curaCasalinga", "curaProfessionale"],
 };
 
+const SCHEMA_SICUREZZA = {
+  type: "OBJECT",
+  properties: {
+    certezza: { type: "INTEGER" },
+    specieConfermata: { type: "STRING" },
+    tossicita: {
+      type: "OBJECT",
+      properties: {
+        livello: { type: "STRING" },
+        persone: { type: "STRING" },
+        animali: { type: "STRING" },
+        partiTossiche: { type: "STRING" },
+      },
+      required: ["livello", "persone", "animali"],
+    },
+    commestibilita: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          parte: { type: "STRING" },
+          stato: { type: "STRING" },
+          nota: { type: "STRING" },
+        },
+        required: ["parte", "stato"],
+      },
+    },
+    sosia: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: { nome: { type: "STRING" }, comeDistinguerlo: { type: "STRING" } },
+        required: ["nome", "comeDistinguerlo"],
+      },
+    },
+    usiTradizionali: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          titolo: { type: "STRING" },
+          dettaglio: { type: "STRING" },
+          preparazione: { type: "STRING" },
+        },
+        required: ["titolo", "dettaglio"],
+      },
+    },
+    cautele: { type: "ARRAY", items: { type: "STRING" } },
+  },
+  required: ["certezza", "specieConfermata", "tossicita", "commestibilita"],
+};
+
+function promptSicurezza(pianta) {
+  const p = pianta || {};
+  return `Sei un botanico ed etnobotanico. Nella foto dovrebbe esserci "${p.nome || "pianta non identificata"}" (${p.specie || "specie ignota"}).
+Verifica tu stesso l'identificazione guardando la foto, poi compila la scheda di sicurezza.
+Rispondi SOLO con JSON valido, in italiano, senza testo prima o dopo.
+Regole obbligatorie:
+- "certezza": intero 0-100, quanto sei sicuro della specie basandoti solo sulla foto. Sii severo: se vedi poche foglie o manca il fiore, abbassa il valore.
+- "specieConfermata": il nome scientifico che ritieni corretto, anche se diverso da quello proposto.
+- "tossicita.livello": una parola fra nessuna, lieve, media, alta.
+- "tossicita.animali": rischio per cani e gatti.
+- "commestibilita": una voce per parte (foglie, fiori, frutti, semi, radici, fusto). "stato" e' una fra: commestibile, solo cotta, non commestibile, tossica.
+- "sosia": specie con cui si confonde, con il segno pratico che le distingue. Se esiste un sosia velenoso mettilo per primo. Se non ce ne sono, lista vuota.
+- "usiTradizionali": uso storico o popolare (tisane, decotti, impacchi, succo fresco, cucina). Scrivi sempre "usata tradizionalmente per", mai "cura" o "guarisce" una malattia.
+- "usiTradizionali[].preparazione": come si prepara in pratica (es. infuso 10 minuti, decotto, impacco sulla pelle, succo fresco). Indica le quantita' SOLO se "tossicita.livello" e' nessuna o lieve. Se il livello e' media o alta scrivi "nessuna dose indicata: pianta tossica".
+- "cautele": 2-4 avvertenze pratiche fra gravidanza e allattamento, allergie, fotosensibilita', uso prolungato, interazione con farmaci. Se non ne conosci, lista vuota.
+- Se la pianta e' tossica dillo anche nelle parti indicate come commestibili.
+Massimo 6 voci in commestibilita, 3 in sosia, 4 in usiTradizionali, 4 in cautele. Ogni testo massimo 22 parole.`;
+}
+
 function promptStagione(pianta, stagione) {
   const p = pianta || {};
   return `Sei un agronomo. La pianta si chiama "${p.nome || "senza nome"}", specie ${p.specie || "non identificata"}.
@@ -94,7 +165,14 @@ export default async function handler(req, res) {
   const { tipo, immagine, mediaType, contesto, pianta, stagione } = corpo;
 
   let parti, schema;
-  if (tipo === "stagione") {
+  if (tipo === "sicurezza") {
+    if (!immagine) return res.status(400).json({ errore: "Manca la foto da analizzare" });
+    parti = [
+      { inline_data: { mime_type: mediaType || "image/jpeg", data: immagine } },
+      { text: promptSicurezza(pianta) },
+    ];
+    schema = SCHEMA_SICUREZZA;
+  } else if (tipo === "stagione") {
     parti = [{ text: promptStagione(pianta, stagione) }];
     schema = SCHEMA_STAGIONE;
   } else {
@@ -118,7 +196,7 @@ export default async function handler(req, res) {
             contents: [{ role: "user", parts: parti }],
             generationConfig: {
               temperature: 0.4,
-              maxOutputTokens: 3000,
+              maxOutputTokens: tipo === "sicurezza" ? 4000 : 3000,
               responseMimeType: "application/json",
               responseSchema: schema,
             },

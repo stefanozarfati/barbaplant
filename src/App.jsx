@@ -548,6 +548,59 @@ Metti 3 voci per ciascuna lista.`
 }
 
 
+function promptSicurezza(nome, specie) {
+  return `Sei un botanico ed etnobotanico. Nella foto dovrebbe esserci "${nome || "pianta non identificata"}" (${specie || "specie ignota"}).
+Verifica tu stesso l'identificazione guardando la foto, poi compila la scheda di sicurezza.
+Rispondi SOLO con JSON valido, in italiano, senza backtick, senza testo prima o dopo:
+{"certezza":0,"specieConfermata":"","tossicita":{"livello":"nessuna|lieve|media|alta","persone":"","animali":"","partiTossiche":""},"commestibilita":[{"parte":"","stato":"commestibile|solo cotta|non commestibile|tossica","nota":""}],"sosia":[{"nome":"","comeDistinguerlo":""}],"usiTradizionali":[{"titolo":"","dettaglio":"","preparazione":""}],"cautele":[""]}
+Regole obbligatorie:
+- "certezza" e' un intero 0-100. Sii severo: se vedi poche foglie o manca il fiore, abbassa il valore.
+- "tossicita.animali" riguarda cani e gatti.
+- In "sosia" metti per primo l'eventuale sosia velenoso, con il segno pratico che lo distingue. Se non ce ne sono, lista vuota.
+- In "usiTradizionali" scrivi sempre "usata tradizionalmente per", mai "cura" o "guarisce".
+- In "preparazione" spiega come si prepara (infuso, decotto, impacco, succo fresco). Metti le quantita' SOLO se la tossicita' e' nessuna o lieve; se e' media o alta scrivi "nessuna dose indicata: pianta tossica".
+- In "cautele" metti 2-4 avvertenze fra gravidanza e allattamento, allergie, fotosensibilita', uso prolungato, interazione con farmaci.
+- Se la pianta e' tossica dillo anche nelle parti indicate come commestibili.
+Massimo 6 voci in commestibilita, 3 in sosia, 4 in usiTradizionali, 4 in cautele. Ogni testo massimo 22 parole.`;
+}
+
+async function chiediSicurezza(dataUrl, nome, specie) {
+  const mediaType = dataUrl.slice(5, dataUrl.indexOf(";"));
+  const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+
+  if (SERVER_DISPONIBILE) {
+    try {
+      const t = await chiamaServer({
+        tipo: "sicurezza",
+        immagine: base64,
+        mediaType,
+        pianta: { nome, specie },
+      });
+      const j = estraiJSON(t);
+      if (j) return j;
+    } catch (e) {
+      SERVER_DISPONIBILE = false;
+    }
+  }
+
+  const istruzioni = promptSicurezza(nome, specie);
+  let testo;
+  if (!CFG.proxy && CFG.chiave) {
+    testo = await chiamaGemini([
+      { inline_data: { mime_type: mediaType, data: base64 } },
+      { text: istruzioni },
+    ]);
+  } else {
+    testo = await chiamaModello([
+      { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
+      { type: "text", text: istruzioni },
+    ]);
+  }
+  const json = estraiJSON(testo);
+  if (!json) throw new Error("Risposta non leggibile");
+  return json;
+}
+
 /* ---------------------- ICONE A LINEE ---------------------- */
 
 function Svg({ s = 24, children }) {
@@ -790,7 +843,192 @@ function BloccoCura({ titolo, sottotitolo, icona, voci, colore }) {
   );
 }
 
-function SchedaDiagnosi({ diagnosi }) {
+const COLORE_STATO = {
+  commestibile: "#4f7d3a",
+  "solo cotta": "#c98a1e",
+  "non commestibile": "#8a8a80",
+  tossica: "#b3402e",
+};
+
+function coloreStato(stato) {
+  const k = String(stato || "").toLowerCase().trim();
+  return COLORE_STATO[k] || C.soft;
+}
+
+function coloreLivello(livello) {
+  const k = String(livello || "").toLowerCase().trim();
+  if (k === "alta") return C.allerta;
+  if (k === "media") return "#c98a1e";
+  if (k === "lieve") return C.primario;
+  return C.salute;
+}
+
+/* Segnala la discordanza solo se entrambi i nomi sono veri nomi scientifici
+   e il genere (la prima parola) e' diverso. Cosi' non allarma per un "—". */
+function specieDiversa(originale, confermata) {
+  const pulisci = (v) => String(v || "").toLowerCase().replace(/[^a-z\s]/g, " ").trim();
+  const a = pulisci(originale);
+  const b = pulisci(confermata);
+  if (a.length < 4 || b.length < 4) return false;
+  return a.split(/\s+/)[0] !== b.split(/\s+/)[0];
+}
+
+function BloccoSicurezza({ foto, diagnosi }) {
+  const [dati, setDati] = useState(null);
+  const [caricamento, setCaricamento] = useState(false);
+  const [errore, setErrore] = useState("");
+
+  async function carica() {
+    setCaricamento(true);
+    setErrore("");
+    try {
+      const esito = await chiediSicurezza(foto, diagnosi.nomeComune, diagnosi.nomeScientifico);
+      setDati(esito);
+    } catch (e) {
+      setErrore("Scheda non disponibile: " + e.message);
+    } finally {
+      setCaricamento(false);
+    }
+  }
+
+  if (!foto || !diagnosi || !diagnosi.nomeComune) return null;
+  if (/nessuna pianta/i.test(diagnosi.nomeComune)) return null;
+
+  if (!dati) {
+    return (
+      <div className="rounded-2xl p-4" style={{ backgroundColor: C.velo, border: `1px solid ${C.bordo}` }}>
+        <p className="text-base font-bold" style={{ color: C.testo }}>Si può mangiare? È tossica?</p>
+        <p className="text-sm mt-1 leading-relaxed" style={{ color: C.soft }}>
+          Commestibilità parte per parte, rischi per persone e animali, sosia pericolosi e usi tradizionali.
+        </p>
+        <Bottone
+          variante="scuro"
+          onClick={carica}
+          disabled={caricamento}
+          className="w-full mt-3 flex items-center justify-center gap-2"
+        >
+          {caricamento ? <><Spinner /> Sto controllando…</> : "Apri la scheda sicurezza"}
+        </Bottone>
+        {errore && <p className="text-sm mt-2" style={{ color: C.allerta }}>{errore}</p>}
+      </div>
+    );
+  }
+
+  const certezza = typeof dati.certezza === "number" ? dati.certezza : 0;
+  const incerta = certezza < 85;
+  const tox = dati.tossicita || {};
+  const parti = Array.isArray(dati.commestibilita) ? dati.commestibilita.filter((x) => x && x.parte) : [];
+  const sosia = Array.isArray(dati.sosia) ? dati.sosia.filter((x) => x && x.nome) : [];
+  const usi = Array.isArray(dati.usiTradizionali) ? dati.usiTradizionali.filter((x) => x && x.titolo) : [];
+  const cautele = Array.isArray(dati.cautele) ? dati.cautele.filter((x) => x && String(x).trim()) : [];
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-bold uppercase tracking-wide" style={{ color: C.soft }}>Sicurezza e usi</p>
+        <Etichetta
+          testo={"Identificazione " + certezza + "%"}
+          colore={incerta ? C.allerta : C.salute}
+        />
+      </div>
+
+      {specieDiversa(diagnosi.nomeScientifico, dati.specieConfermata) && (
+        <div className="rounded-2xl px-3 py-2" style={{ backgroundColor: C.allerta + "14" }}>
+          <p className="text-sm" style={{ color: C.allerta }}>
+            Al secondo controllo la specie risulta <strong>{dati.specieConfermata}</strong>, diversa da quella della diagnosi.
+          </p>
+        </div>
+      )}
+
+      <div className="rounded-2xl px-3 py-3" style={{ backgroundColor: C.velo }}>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-base font-semibold" style={{ color: C.testo }}>Tossicità</p>
+          <Etichetta testo={tox.livello || "da verificare"} colore={coloreLivello(tox.livello)} />
+        </div>
+        {tox.persone && <p className="text-sm mt-2" style={{ color: C.soft }}><strong style={{ color: C.testo }}>Persone:</strong> {tox.persone}</p>}
+        {tox.animali && <p className="text-sm mt-1" style={{ color: C.soft }}><strong style={{ color: C.testo }}>Cani e gatti:</strong> {tox.animali}</p>}
+        {tox.partiTossiche && <p className="text-sm mt-1" style={{ color: C.soft }}><strong style={{ color: C.testo }}>Parti da evitare:</strong> {tox.partiTossiche}</p>}
+      </div>
+
+      {parti.length > 0 && (
+        <div>
+          {incerta && (
+            <div className="rounded-2xl px-3 py-2 mb-2" style={{ backgroundColor: C.allerta, color: "#fff" }}>
+              <p className="text-sm font-semibold">Identificazione non sicura ({certezza}%)</p>
+              <p className="text-sm mt-1 leading-relaxed">
+                Non mangiare nulla sulla base di questa scheda: fai confermare la specie a un esperto.
+              </p>
+            </div>
+          )}
+          <p className="text-base font-semibold mb-2" style={{ color: C.testo }}>Parte per parte</p>
+          <div className="space-y-2">
+            {parti.map((v, i) => (
+              <div key={i} className="rounded-2xl px-3 py-2" style={{ backgroundColor: C.velo }}>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-base font-semibold capitalize" style={{ color: C.testo }}>{v.parte}</p>
+                  <Etichetta testo={v.stato || "da verificare"} colore={coloreStato(v.stato)} />
+                </div>
+                {v.nota && <p className="text-sm mt-1" style={{ color: C.soft }}>{v.nota}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {sosia.length > 0 && (
+        <div className="rounded-2xl px-3 py-3" style={{ backgroundColor: C.allerta + "10", border: `1px solid ${C.allerta}33` }}>
+          <p className="text-base font-semibold" style={{ color: C.allerta }}>Si confonde con</p>
+          <ul className="mt-2 space-y-2">
+            {sosia.map((v, i) => (
+              <li key={i}>
+                <p className="text-base font-semibold" style={{ color: C.testo }}>{v.nome}</p>
+                <p className="text-sm" style={{ color: C.soft }}>{v.comeDistinguerlo}</p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {usi.length > 0 && (
+        <div className="rounded-2xl px-3 py-3" style={{ backgroundColor: C.velo }}>
+          <p className="text-base font-semibold" style={{ color: C.testo }}>Usi tradizionali</p>
+          <ul className="mt-2 space-y-2">
+            {usi.map((v, i) => (
+              <li key={i}>
+                <p className="text-base font-semibold" style={{ color: C.testo }}>{v.titolo}</p>
+                <p className="text-sm" style={{ color: C.soft }}>{v.dettaglio}</p>
+                {v.preparazione && (
+                  <p className="text-sm mt-1" style={{ color: C.testo }}>
+                    <strong>Come si prepara:</strong> {v.preparazione}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {cautele.length > 0 && (
+        <div className="rounded-2xl px-3 py-3" style={{ backgroundColor: "#c98a1e18" }}>
+          <p className="text-base font-semibold" style={{ color: "#8a5e10" }}>Cautele</p>
+          <ul className="mt-2 space-y-1">
+            {cautele.map((v, i) => (
+              <li key={i} className="text-sm" style={{ color: C.testo }}>• {v}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <p className="text-xs leading-relaxed" style={{ color: C.soft }}>
+        Scheda informativa generata da un'intelligenza artificiale a partire da una foto. Non è una consulenza
+        botanica né medica. Non raccogliere né consumare piante spontanee senza la conferma di una persona esperta:
+        alcune specie velenose somigliano moltissimo a specie commestibili.
+      </p>
+    </div>
+  );
+}
+
+function SchedaDiagnosi({ diagnosi, foto }) {
   if (!diagnosi) return null;
   return (
     <div className="space-y-4">
@@ -843,6 +1081,8 @@ function SchedaDiagnosi({ diagnosi }) {
         voci={diagnosi.curaProfessionale}
         colore={C.salute}
       />
+
+      <BloccoSicurezza foto={foto} diagnosi={diagnosi} />
 
       {diagnosi.consiglioStagionale && (
         <div className="rounded-2xl p-4" style={{ backgroundColor: C.testo }}>
@@ -1142,7 +1382,7 @@ export default function App() {
 
       {analisi && !caricamento && (
         <Card className="p-5">
-          <SchedaDiagnosi diagnosi={analisi} />
+          <SchedaDiagnosi diagnosi={analisi} foto={fotoCorrente} />
           <div className="mt-4">
             {salvata ? (
               <div className="rounded-2xl px-4 py-3 text-sm text-center font-semibold"
