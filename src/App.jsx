@@ -194,13 +194,37 @@ function leggiArchivio() {
     return null;
   }
 }
+/* Toglie le foto dalle voci piu' vecchie del registro: nell'archivio bastano le ultime. */
+function alleggerisci(piante, quante) {
+  return (piante || []).map((p) => {
+    const storico = p.storico || [];
+    const conFoto = storico.map((v, i) => (v.foto ? i : -1)).filter((i) => i >= 0);
+    const tieni = new Set(conFoto.slice(-quante));
+    return {
+      ...p,
+      storico: storico.map((v, i) => (v.foto && !tieni.has(i) ? { ...v, foto: null } : v)),
+    };
+  });
+}
+
+/* Restituisce true se il salvataggio e' riuscito. */
 function scriviArchivio(dati) {
-  if (!HA_ARCHIVIO) return;
-  try {
-    window.localStorage.setItem(CHIAVE_ARCHIVIO, JSON.stringify(dati));
-  } catch {
-    /* memoria piena: si continua senza salvare */
+  if (!HA_ARCHIVIO) return true;
+  /* Primo tentativo: tutto. Gli altri servono solo se la memoria e' davvero piena. */
+  const tentativi = [
+    dati,
+    { ...dati, piante: alleggerisci(dati.piante, 3) },
+    { ...dati, piante: alleggerisci(dati.piante, 1) },
+  ];
+  for (const t of tentativi) {
+    try {
+      window.localStorage.setItem(CHIAVE_ARCHIVIO, JSON.stringify(t));
+      return true;
+    } catch {
+      /* memoria piena: si prova la versione piu' leggera */
+    }
   }
+  return false;
 }
 
 /* Riduce la foto prima di spedirla: gli scatti da telefono sono troppo pesanti. */
@@ -226,6 +250,27 @@ function ridimensiona(dataUrl, latoMax = 1024, qualita = 0.82) {
     img.onerror = () => rifiuta(new Error("Formato foto non supportato dal browser. Prova con un'altra foto (JPG o PNG)."));
     img.src = dataUrl;
   });
+}
+
+/* Copia ridotta della foto, usata SOLO per l'archivio sul telefono.
+   L'analisi con l'IA continua a ricevere la foto grande. */
+const SOGLIA_FOTO = 60000;
+async function fotoLeggera(dataUrl) {
+  if (!dataUrl) return dataUrl;
+  try {
+    return await ridimensiona(dataUrl, 520, 0.55);
+  } catch {
+    return dataUrl;
+  }
+}
+/* Copia ancora piu' leggera per le foto del registro: ne restano tante senza riempire la memoria. */
+async function fotoStorica(dataUrl) {
+  if (!dataUrl) return dataUrl;
+  try {
+    return await ridimensiona(dataUrl, 400, 0.5);
+  } catch {
+    return dataUrl;
+  }
 }
 
 /* ---------------------- 3. MOTORE DI ANALISI ---------------------- */
@@ -1182,9 +1227,35 @@ export default function App() {
 
   const inputFoto = useRef(null);
 
+  const [memoriaPiena, setMemoriaPiena] = useState(false);
+
   useEffect(() => {
-    scriviArchivio({ piante, profilo });
+    setMemoriaPiena(!scriviArchivio({ piante, profilo }));
   }, [piante, profilo]);
+
+  /* Una tantum all'avvio: rimpicciolisce le foto pesanti salvate in passato. */
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      const pesante = (v) => v && v.length > SOGLIA_FOTO;
+      const serve = piante.some(
+        (p) => pesante(p.foto) || (p.storico || []).some((v) => pesante(v.foto))
+      );
+      if (!serve) return;
+      const ridotte = [];
+      for (const p of piante) {
+        const foto = pesante(p.foto) ? await fotoLeggera(p.foto) : p.foto;
+        const storico = [];
+        for (const v of p.storico || []) {
+          storico.push(pesante(v.foto) ? { ...v, foto: await fotoStorica(v.foto) } : v);
+        }
+        ridotte.push({ ...p, foto, storico });
+      }
+      if (vivo) setPiante(ridotte);
+    })();
+    return () => { vivo = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const stagione = stagioneCorrente();
   const analisiTotali = useMemo(
@@ -1251,32 +1322,36 @@ export default function App() {
     }
   }
 
-  function salvaAnalisiInCollezione() {
+  async function salvaAnalisiInCollezione() {
     if (!analisi) return;
+    const mini = await fotoLeggera(fotoCorrente);
+    const miniStorico = await fotoStorica(fotoCorrente);
     const nuova = {
       id: "p-" + Date.now(),
       nome: analisi.nomeComune,
       specie: analisi.nomeScientifico,
       emoji: "🪴",
-      foto: fotoCorrente,
+      foto: mini,
       salute: analisi.salute,
       dataAggiunta: oggiISO(),
       diagnosi: analisi,
       storico: [
-        { data: oggiISO(), tipo: "aggiunta", salute: analisi.salute, nota: "Aggiunta dalla diagnosi con foto.", foto: fotoCorrente },
+        { data: oggiISO(), tipo: "aggiunta", salute: analisi.salute, nota: "Aggiunta dalla diagnosi con foto.", foto: miniStorico },
       ],
     };
     setPiante((p) => [nuova, ...p]);
     setSalvata(true);
   }
 
-  function aggiungiPiantaManuale(dati) {
+  async function aggiungiPiantaManuale(dati) {
+    const mini = await fotoLeggera(dati.foto);
+    const miniStorico = await fotoStorica(dati.foto);
     const nuova = {
       id: "p-" + Date.now(),
       nome: dati.nome,
       specie: dati.specie || "Specie da identificare",
       emoji: dati.emoji || "🪴",
-      foto: dati.foto,
+      foto: mini,
       salute: dati.salute,
       dataAggiunta: oggiISO(),
       diagnosi: dati.diagnosi || null,
@@ -1285,7 +1360,7 @@ export default function App() {
         tipo: "aggiunta",
         salute: dati.salute,
         nota: dati.nota || (dati.diagnosi ? "Aggiunta e riconosciuta con l'IA." : "Inserita manualmente."),
-        foto: dati.foto,
+        foto: miniStorico,
       }],
     };
     setPiante((p) => [nuova, ...p]);
@@ -1595,6 +1670,16 @@ export default function App() {
         >
           <img src="/wordmark.png" alt="BarbaPlant" style={{ height: 30, width: "auto" }} />
         </header>
+
+        {memoriaPiena && (
+          <div
+            className="mx-5 mt-3 rounded-2xl px-4 py-3 text-sm font-semibold"
+            style={{ backgroundColor: "#fdecec", color: "#a11c1c", border: "1px solid #f0b4b4" }}
+          >
+            Memoria del telefono piena: le ultime modifiche potrebbero non essere salvate.
+            Elimina qualche pianta dall'archivio per liberare spazio.
+          </div>
+        )}
 
         <main className="px-5 pt-5" style={{ paddingBottom: 110 }}>
           {scheda === "bacheca" && Bacheca}
@@ -1929,14 +2014,16 @@ function DettaglioPianta({ pianta, stagione, onChiudi, onAggiorna, onElimina, le
         esito = analisiSimulata(dataUrl.length);
         setErrore("Servizio non raggiungibile: diagnosi dimostrativa (" + err.message + ").");
       }
+      const mini = await fotoLeggera(dataUrl);
+      const miniStorico = await fotoStorica(dataUrl);
       onAggiorna(pianta.id, {
-        foto: dataUrl,
+        foto: mini,
         salute: esito.salute,
         specie: esito.nomeScientifico !== "—" ? esito.nomeScientifico : pianta.specie,
         diagnosi: esito,
         storico: [
           ...pianta.storico,
-          { data: oggiISO(), tipo: "analisi", salute: esito.salute, nota: esito.sintesi || "Nuova analisi con foto.", foto: dataUrl },
+          { data: oggiISO(), tipo: "analisi", salute: esito.salute, nota: esito.sintesi || "Nuova analisi con foto.", foto: miniStorico },
         ],
       });
       setVista("evoluzione");
@@ -2176,6 +2263,7 @@ function DettaglioPianta({ pianta, stagione, onChiudi, onAggiorna, onElimina, le
                 pianta={pianta}
                 onScatta={() => inputNuovaFoto.current && inputNuovaFoto.current.click()}
                 caricamento={caricamento && azione === "analisi"}
+                onAggiorna={onAggiorna}
               />
             ) : (
               <div className="space-y-3">
@@ -2245,11 +2333,79 @@ function DettaglioPianta({ pianta, stagione, onChiudi, onAggiorna, onElimina, le
   );
 }
 
+/* Foto a schermo intero, con salvataggio sul telefono ed eliminazione. */
+function VisoreFoto({ foto, etichetta, onChiudi, onElimina }) {
+  if (!foto) return null;
+  const nomeFile =
+    "barbaplant-" + String(etichetta || "foto").toLowerCase().replace(/[^a-z0-9]+/g, "-") + ".jpg";
+  return (
+    <div
+      className="fixed inset-0 z-50 flex flex-col"
+      style={{ backgroundColor: "rgba(12,18,12,0.94)" }}
+      onClick={onChiudi}
+    >
+      <div className="flex-1 flex items-center justify-center px-4" onClick={(e) => e.stopPropagation()}>
+        <img
+          src={foto}
+          alt={etichetta || ""}
+          style={{ maxWidth: "100%", maxHeight: "72vh", borderRadius: 18 }}
+        />
+      </div>
+      <div
+        className="px-5 pb-8 pt-3 space-y-2"
+        style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 24px)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {etichetta && (
+          <p className="text-center text-sm font-semibold" style={{ color: "#e8efe4" }}>{etichetta}</p>
+        )}
+        <a
+          href={foto}
+          download={nomeFile}
+          className="block w-full rounded-2xl px-4 py-3 text-center text-base font-bold"
+          style={{ backgroundColor: C.primario, color: "#0e1a0e" }}
+        >
+          Salva sul telefono
+        </a>
+        {onElimina && (
+          <button
+            onClick={onElimina}
+            className="block w-full rounded-2xl px-4 py-3 text-center text-base font-bold"
+            style={{ backgroundColor: "rgba(255,255,255,0.10)", color: "#ffb4b4" }}
+          >
+            Elimina questa foto
+          </button>
+        )}
+        <button
+          onClick={onChiudi}
+          className="block w-full rounded-2xl px-4 py-3 text-center text-base font-bold"
+          style={{ backgroundColor: "rgba(255,255,255,0.10)", color: "#e8efe4" }}
+        >
+          Chiudi
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /* ---------------------- 10. EVOLUZIONE (confronto foto nel tempo) ---------------------- */
 
-function Evoluzione({ pianta, onScatta, caricamento }) {
+function Evoluzione({ pianta, onScatta, caricamento, onAggiorna }) {
   const fotoStorico = pianta.storico.filter((s) => s.foto);
   const [indicePrima, setIndicePrima] = useState(0);
+  const [aperta, setAperta] = useState(null); // { foto, etichetta, data }
+
+  /* Toglie l'immagine da una voce del registro: la voce resta, con data, salute e nota. */
+  function eliminaFoto(voce) {
+    if (!onAggiorna) return;
+    onAggiorna(pianta.id, {
+      storico: pianta.storico.map((v) =>
+        v.data === voce.data && v.nota === voce.nota && v.foto === voce.foto ? { ...v, foto: null } : v
+      ),
+    });
+    setAperta(null);
+    setIndicePrima(0);
+  }
 
   if (fotoStorico.length < 2) {
     return (
@@ -2275,6 +2431,12 @@ function Evoluzione({ pianta, onScatta, caricamento }) {
 
   return (
     <div className="space-y-3">
+      <VisoreFoto
+        foto={aperta && aperta.foto}
+        etichetta={aperta && aperta.etichetta}
+        onChiudi={() => setAperta(null)}
+        onElimina={aperta ? () => eliminaFoto(aperta.voce) : null}
+      />
       <Card className="p-5">
         <p className="text-sm font-bold" style={{ color: C.testo }}>Prima e ora a confronto</p>
         <p className="text-sm mt-1" style={{ color: C.soft }}>
@@ -2283,16 +2445,26 @@ function Evoluzione({ pianta, onScatta, caricamento }) {
 
         <div className="grid grid-cols-2 gap-3 mt-3">
           <div>
-            <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${C.bordo}` }}>
+            <button
+              type="button"
+              onClick={() => setAperta({ foto: prima.foto, etichetta: "Prima · " + dataLeggibile(prima.data), voce: prima })}
+              className="block w-full rounded-2xl overflow-hidden"
+              style={{ border: `1px solid ${C.bordo}` }}
+            >
               <img src={prima.foto} alt="Prima" className="w-full object-cover" style={{ height: 150 }} />
-            </div>
+            </button>
             <p className="text-xs font-semibold mt-2" style={{ color: C.soft }}>Prima · {dataLeggibile(prima.data)}</p>
             <p className="text-sm font-bold" style={{ color: coloreSalute(prima.salute) }}>{prima.salute}%</p>
           </div>
           <div>
-            <div className="rounded-2xl overflow-hidden" style={{ border: `1px solid ${C.bordo}` }}>
+            <button
+              type="button"
+              onClick={() => setAperta({ foto: ora.foto, etichetta: "Ora · " + dataLeggibile(ora.data), voce: ora })}
+              className="block w-full rounded-2xl overflow-hidden"
+              style={{ border: `1px solid ${C.bordo}` }}
+            >
               <img src={ora.foto} alt="Ora" className="w-full object-cover" style={{ height: 150 }} />
-            </div>
+            </button>
             <p className="text-xs font-semibold mt-2" style={{ color: C.soft }}>Ora · {dataLeggibile(ora.data)}</p>
             <p className="text-sm font-bold" style={{ color: coloreSalute(ora.salute) }}>{ora.salute}%</p>
           </div>
@@ -2320,9 +2492,20 @@ function Evoluzione({ pianta, onScatta, caricamento }) {
           <p className="text-xs font-bold uppercase tracking-wide mb-3" style={{ color: C.soft }}>
             Scegli un altro punto di partenza
           </p>
+          <p className="text-xs mb-3" style={{ color: C.soft }}>
+            Tocca una foto per sceglierla, toccala di nuovo per vederla a schermo intero.
+          </p>
           <div className="flex gap-3 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
             {fotoStorico.slice(0, -1).map((s, i) => (
-              <button key={i} onClick={() => setIndicePrima(i)} className="shrink-0 text-center">
+              <button
+                key={i}
+                onClick={() =>
+                  i === indicePrima
+                    ? setAperta({ foto: s.foto, etichetta: dataLeggibile(s.data), voce: s })
+                    : setIndicePrima(i)
+                }
+                className="shrink-0 text-center"
+              >
                 <div
                   className="rounded-2xl overflow-hidden"
                   style={{
