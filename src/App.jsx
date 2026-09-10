@@ -2053,12 +2053,16 @@ function DettaglioPianta({ pianta, stagione, onChiudi, onAggiorna, onElimina, le
       try {
         esito = await ricalibraStagione(pianta, stagione);
       } catch (err) {
+        if (!pianta.diagnosi) {
+          setErrore("Consigli di stagione non disponibili al momento (" + err.message + "). Riprova più tardi.");
+          return;
+        }
         esito = {
           consiglioStagionale: STAGIONI[stagione].punti.slice(0, 2).join(" "),
-          curaCasalinga: (pianta.diagnosi && pianta.diagnosi.curaCasalinga) || analisiSimulata(0).curaCasalinga,
-          curaProfessionale: (pianta.diagnosi && pianta.diagnosi.curaProfessionale) || analisiSimulata(0).curaProfessionale,
+          curaCasalinga: pianta.diagnosi.curaCasalinga,
+          curaProfessionale: pianta.diagnosi.curaProfessionale,
         };
-        setErrore("Servizio non raggiungibile: consigli di stagione dalla guida interna.");
+        setErrore("Servizio non raggiungibile: sono rimasti i consigli di cura già salvati per questa pianta.");
       }
       const base = pianta.diagnosi || {
         nomeComune: pianta.nome,
@@ -2066,7 +2070,6 @@ function DettaglioPianta({ pianta, stagione, onChiudi, onAggiorna, onElimina, le
         salute: pianta.salute,
         sintesi: "",
         problemi: [],
-        simulata: true,
       };
       onAggiorna(pianta.id, {
         diagnosi: {
