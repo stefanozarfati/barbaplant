@@ -546,7 +546,8 @@ async function unTentativo(dataUrl, contesto) {
 
   if (testo) {
     const j = estraiJSON(testo);
-    if (!j || !j.nomeComune) throw new Error("Risposta non leggibile");
+    if (!j) throw new Error("Risposta non leggibile");
+    if (!j.nomeComune || /nessuna pianta/i.test(j.nomeComune)) throw new Error("Nessuna pianta riconosciuta nella foto");
     return normalizza(j, stagione);
   }
 
@@ -563,7 +564,8 @@ async function unTentativo(dataUrl, contesto) {
   }
 
   const json = estraiJSON(testo);
-  if (!json || !json.nomeComune) throw new Error("Risposta non leggibile");
+  if (!json) throw new Error("Risposta non leggibile");
+  if (!json.nomeComune || /nessuna pianta/i.test(json.nomeComune)) throw new Error("Nessuna pianta riconosciuta nella foto");
   return normalizza(json, stagione);
 }
 
