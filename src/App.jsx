@@ -2288,7 +2288,7 @@ function DettaglioPianta({ pianta, stagione, onChiudi, onAggiorna, onElimina, le
           <div className="mt-4">
             {vista === "cura" ? (
               pianta.diagnosi ? (
-                <Card className="p-5"><SchedaDiagnosi diagnosi={pianta.diagnosi} /></Card>
+                <Card className="p-5"><SchedaDiagnosi diagnosi={pianta.diagnosi} foto={pianta.foto} /></Card>
               ) : (
                 <Card className="p-6 text-center">
                   <p className="text-3xl">🔍</p>
