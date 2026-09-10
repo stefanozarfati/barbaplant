@@ -1310,12 +1310,9 @@ export default function App() {
       const esito = await analizzaFoto(fotoCorrente, contesto);
       setAnalisi(esito);
     } catch (err) {
-      const ripiego = analisiSimulata(fotoCorrente.length);
-      setAnalisi(ripiego);
+      setAnalisi(null);
       setErrore(
-        "Il servizio di riconoscimento non ha risposto (" +
-          err.message +
-          "). Qui sotto trovi una diagnosi dimostrativa."
+        "Diagnosi non riuscita (" + err.message + "). Riprova con questa foto o scattane un'altra."
       );
     } finally {
       setCaricamento(false);
@@ -1996,24 +1993,27 @@ function DettaglioPianta({ pianta, stagione, onChiudi, onAggiorna, onElimina, le
   const [errore, setErrore] = useState("");
   const [nota, setNota] = useState("");
   const [confermaEliminazione, setConfermaEliminazione] = useState(false);
+  const [fotoPendente, setFotoPendente] = useState(null);
   const inputNuovaFoto = useRef(null);
 
   async function nuovaAnalisi(e) {
     const file = e.target.files && e.target.files[0];
     e.target.value = "";
     if (!file) return;
+    try {
+      const dataUrl = await ridimensiona(await leggiFile(file));
+      await tentaAnalisiEvoluzione(dataUrl);
+    } catch (err) {
+      setErrore(err.message);
+    }
+  }
+
+  async function tentaAnalisiEvoluzione(dataUrl) {
     setCaricamento(true);
     setAzione("analisi");
     setErrore("");
     try {
-      const dataUrl = await ridimensiona(await leggiFile(file));
-      let esito;
-      try {
-        esito = await analizzaFoto(dataUrl, `La pianta si chiama ${pianta.nome}, specie dichiarata ${pianta.specie}.`);
-      } catch (err) {
-        esito = analisiSimulata(dataUrl.length);
-        setErrore("Servizio non raggiungibile: diagnosi dimostrativa (" + err.message + ").");
-      }
+      const esito = await analizzaFoto(dataUrl, `La pianta si chiama ${pianta.nome}, specie dichiarata ${pianta.specie}.`);
       const mini = await fotoLeggera(dataUrl);
       const miniStorico = await fotoStorica(dataUrl);
       onAggiorna(pianta.id, {
@@ -2026,13 +2026,20 @@ function DettaglioPianta({ pianta, stagione, onChiudi, onAggiorna, onElimina, le
           { data: oggiISO(), tipo: "analisi", salute: esito.salute, nota: esito.sintesi || "Nuova analisi con foto.", foto: miniStorico },
         ],
       });
+      setFotoPendente(null);
       setVista("evoluzione");
     } catch (err) {
-      setErrore(err.message);
+      setFotoPendente(dataUrl);
+      setErrore("Diagnosi non riuscita (" + err.message + "). Riprova con questa foto o scartala e scattane un'altra.");
     } finally {
       setCaricamento(false);
       setAzione("");
     }
+  }
+
+  function scartaFotoPendente() {
+    setFotoPendente(null);
+    setErrore("");
   }
 
   async function ricalibra() {
@@ -2223,6 +2230,34 @@ function DettaglioPianta({ pianta, stagione, onChiudi, onAggiorna, onElimina, le
           </Card>
 
           {errore && <div className="mt-3"><Avviso testo={errore} onChiudi={() => setErrore("")} /></div>}
+
+          {fotoPendente && (
+            <Card className="p-4 mt-3">
+              <div className="flex items-center gap-3">
+                <img
+                  src={fotoPendente}
+                  alt="Foto in attesa di un nuovo tentativo"
+                  className="rounded-2xl object-cover shrink-0"
+                  style={{ width: 64, height: 64 }}
+                />
+                <p className="text-sm" style={{ color: C.soft }}>
+                  Questa foto non è ancora stata analizzata con successo.
+                </p>
+              </div>
+              <div className="flex gap-2 mt-3">
+                <Bottone
+                  onClick={() => tentaAnalisiEvoluzione(fotoPendente)}
+                  disabled={caricamento}
+                  className="flex-1 flex items-center justify-center gap-2"
+                >
+                  {caricamento && azione === "analisi" ? <Spinner /> : "🔍"} Riprova diagnosi
+                </Bottone>
+                <Bottone variante="vuoto" onClick={scartaFotoPendente} disabled={caricamento}>
+                  Scarta
+                </Bottone>
+              </div>
+            </Card>
+          )}
 
           <div className="flex gap-2 mt-4">
             {[
