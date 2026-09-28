@@ -231,7 +231,9 @@ function scriviArchivio(dati) {
 /* Ridisegna sempre su canvas e riesporta in JPEG: così anche formati che il browser
    legge ma che <img> non renderizza in modo affidabile (es. HEIC su alcuni telefoni)
    arrivano all'anteprima già in un formato che si vede per certo. */
-function ridimensiona(dataUrl, latoMax = 1024, qualita = 0.82) {
+/* 2048 px: serve dettaglio per riconoscere foglie e corteccia (soprattutto alberi).
+   Il salvataggio in collezione ricomprime comunque con fotoLeggera/fotoStorica. */
+function ridimensiona(dataUrl, latoMax = 2048, qualita = 0.9) {
   return new Promise((risolvi, rifiuta) => {
     const img = new Image();
     img.onload = () => {
@@ -382,8 +384,12 @@ function estraiJSON(testo) {
   try { return JSON.parse(chiudiJSON(pulito.slice(inizio))); } catch { return null; }
 }
 
-const PROMPT_DIAGNOSI = `Sei un agronomo esperto di piante da appartamento, orto e balcone.
+const PROMPT_DIAGNOSI = `Sei un botanico e agronomo esperto di ogni tipo di pianta: da appartamento, orto e balcone, ma anche alberi, arbusti, piante spontanee, erbe selvatiche e flora mediterranea ed europea.
 Analizza la foto e rispondi SOLO con JSON valido, senza testo prima o dopo, senza backtick. Tutto in italiano.
+Per riconoscere la specie usa ogni indizio visibile: forma e margine delle foglie, disposizione, corteccia, portamento, fiori, frutti, ambiente.
+Se la foto mostra un albero intero o una pianta ripresa da lontano, riconoscila comunque dal portamento e dai dettagli visibili.
+Dai SEMPRE l'ipotesi piu' probabile anche se non sei sicuro; in quel caso dillo nella "sintesi" (es. "Probabile leccio: per conferma fotografa una foglia da vicino").
+Per alberi e piante in piena terra adatta le cure: niente rinvaso, consigli di potatura, irrigazione e concimazione adatti.
 Sii sintetico: "sintesi" massimo 25 parole, ogni "dettaglio" massimo 18 parole. Massimo 2 problemi.
 {
  "nomeComune":"",
@@ -396,7 +402,7 @@ Sii sintetico: "sintesi" massimo 25 parole, ogni "dettaglio" massimo 18 parole. 
  "consiglioStagionale":""
 }
 "salute" e' un intero 0-100. Metti 3 voci in curaCasalinga e 3 in curaProfessionale.
-Se nella foto non c'e' una pianta: nomeComune "Nessuna pianta riconosciuta", salute 0.`;
+Usa nomeComune "Nessuna pianta riconosciuta" (salute 0) SOLO se nella foto non c'e' alcuna pianta.`;
 
 /* Configurazione IA. La chiave la inserisce l'utente dal Profilo: non sta nel codice. */
 const CFG = { chiave: "", proxy: "" };
