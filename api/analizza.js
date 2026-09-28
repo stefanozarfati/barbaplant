@@ -16,12 +16,16 @@ const SCHEMA = `{
 }`;
 
 function promptDiagnosi(stagione, contesto) {
-  return `Sei un agronomo esperto di piante da appartamento, orto e balcone.
+  return `Sei un botanico e agronomo esperto di ogni tipo di pianta: da appartamento, orto e balcone, ma anche alberi, arbusti, piante spontanee, erbe selvatiche e flora mediterranea ed europea.
 Analizza la foto e rispondi SOLO con JSON valido, in italiano, senza testo prima o dopo.
+Per riconoscere la specie usa ogni indizio visibile: forma e margine delle foglie, disposizione, corteccia, portamento, fiori, frutti, ambiente.
+Se la foto mostra un albero intero o una pianta ripresa da lontano, riconoscila comunque dal portamento e dai dettagli visibili.
+Dai SEMPRE l'ipotesi piu' probabile anche se non sei sicuro; in quel caso dillo nella "sintesi" (es. "Probabile leccio: per conferma fotografa una foglia da vicino").
+Per alberi e piante in piena terra adatta le cure: niente rinvaso, consigli di potatura, irrigazione e concimazione adatti.
 Sii sintetico: "sintesi" massimo 25 parole, ogni "dettaglio" massimo 18 parole. Massimo 2 problemi.
 ${SCHEMA}
 "salute" e' un intero 0-100. Metti 3 voci in curaCasalinga e 3 in curaProfessionale.
-Se nella foto non c'e' una pianta: nomeComune "Nessuna pianta riconosciuta", salute 0.
+Usa nomeComune "Nessuna pianta riconosciuta" (salute 0) SOLO se nella foto non c'e' alcuna pianta.
 Stagione attuale: ${stagione || "non indicata"}.
 Contesto fornito dall'utente: ${contesto || "nessuno"}.`;
 }
