@@ -101,10 +101,11 @@ const SCHEMA_SICUREZZA = {
       type: "ARRAY",
       items: {
         type: "OBJECT",
-        properties: { nome: { type: "STRING" }, comeDistinguerlo: { type: "STRING" } },
-        required: ["nome", "comeDistinguerlo"],
+        properties: { nome: { type: "STRING" }, pericolo: { type: "STRING" }, comeDistinguerlo: { type: "STRING" } },
+        required: ["nome", "pericolo", "comeDistinguerlo"],
       },
     },
+    proveConferma: { type: "ARRAY", items: { type: "STRING" } },
     usiTradizionali: {
       type: "ARRAY",
       items: {
@@ -119,7 +120,7 @@ const SCHEMA_SICUREZZA = {
     },
     cautele: { type: "ARRAY", items: { type: "STRING" } },
   },
-  required: ["certezza", "specieConfermata", "tossicita", "commestibilita"],
+  required: ["certezza", "specieConfermata", "tossicita", "commestibilita", "sosia", "proveConferma"],
 };
 
 function promptSicurezza(pianta) {
@@ -133,11 +134,13 @@ Regole obbligatorie:
 - "tossicita.livello": una parola fra nessuna, lieve, media, alta.
 - "commestibilita": una voce per parte (foglie, fiori, frutti, semi, radici, fusto). "stato" e' una fra: commestibile, solo cotta, non commestibile, tossica.
 - "sosia": specie con cui si confonde, con il segno pratico che le distingue. Se esiste un sosia velenoso mettilo per primo. Se non ce ne sono, lista vuota.
+- "sosia[].pericolo": una parola fra mortale, tossico, innocuo. Pensa soprattutto alle confusioni classiche della raccolta spontanea (es. ombrellifere con cicuta, aglio orsino con colchico o mughetto, borragine con digitale).
+- "proveConferma": 2-4 controlli pratici sul campo che la foto non mostra (odore della foglia strofinata, fusto, peluria, macchie, radice o bulbo, habitat). Frasi brevi e operative, es. "Strofina una foglia: deve sapere d'aglio, altrimenti non raccoglierla".
 - "usiTradizionali": uso storico o popolare (tisane, decotti, impacchi, succo fresco, cucina). Scrivi sempre "usata tradizionalmente per", mai "cura" o "guarisce" una malattia.
 - "usiTradizionali[].preparazione": come si prepara in pratica (es. infuso 10 minuti, decotto, impacco sulla pelle, succo fresco). Indica le quantita' SOLO se "tossicita.livello" e' nessuna o lieve. Se il livello e' media o alta scrivi "nessuna dose indicata: pianta tossica".
 - "cautele": 2-4 avvertenze pratiche fra gravidanza e allattamento, allergie, fotosensibilita', uso prolungato, interazione con farmaci. Se non ne conosci, lista vuota.
 - Se la pianta e' tossica dillo anche nelle parti indicate come commestibili.
-Massimo 6 voci in commestibilita, 3 in sosia, 4 in usiTradizionali, 4 in cautele. Ogni testo massimo 22 parole.`;
+Massimo 6 voci in commestibilita, 3 in sosia, 4 in proveConferma, 4 in usiTradizionali, 4 in cautele. Ogni testo massimo 22 parole.`;
 }
 
 function promptStagione(pianta, stagione) {
