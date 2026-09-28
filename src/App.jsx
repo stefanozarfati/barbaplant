@@ -614,15 +614,17 @@ function promptSicurezza(nome, specie) {
   return `Sei un botanico ed etnobotanico. Nella foto dovrebbe esserci "${nome || "pianta non identificata"}" (${specie || "specie ignota"}).
 Verifica tu stesso l'identificazione guardando la foto, poi compila la scheda di sicurezza.
 Rispondi SOLO con JSON valido, in italiano, senza backtick, senza testo prima o dopo:
-{"certezza":0,"specieConfermata":"","tossicita":{"livello":"nessuna|lieve|media|alta","persone":"","partiTossiche":""},"commestibilita":[{"parte":"","stato":"commestibile|solo cotta|non commestibile|tossica","nota":""}],"sosia":[{"nome":"","comeDistinguerlo":""}],"usiTradizionali":[{"titolo":"","dettaglio":"","preparazione":""}],"cautele":[""]}
+{"certezza":0,"specieConfermata":"","tossicita":{"livello":"nessuna|lieve|media|alta","persone":"","partiTossiche":""},"commestibilita":[{"parte":"","stato":"commestibile|solo cotta|non commestibile|tossica","nota":""}],"sosia":[{"nome":"","pericolo":"mortale|tossico|innocuo","comeDistinguerlo":""}],"proveConferma":[""],"usiTradizionali":[{"titolo":"","dettaglio":"","preparazione":""}],"cautele":[""]}
 Regole obbligatorie:
 - "certezza" e' un intero 0-100. Sii severo: se vedi poche foglie o manca il fiore, abbassa il valore.
 - In "sosia" metti per primo l'eventuale sosia velenoso, con il segno pratico che lo distingue. Se non ce ne sono, lista vuota.
+- "sosia[].pericolo": una parola fra mortale, tossico, innocuo. Pensa soprattutto alle confusioni classiche della raccolta spontanea (es. ombrellifere con cicuta, aglio orsino con colchico o mughetto, borragine con digitale).
+- In "proveConferma" metti 2-4 controlli pratici sul campo che la foto non mostra (odore della foglia strofinata, fusto, peluria, macchie, radice o bulbo, habitat). Es. "Strofina una foglia: deve sapere d'aglio, altrimenti non raccoglierla".
 - In "usiTradizionali" scrivi sempre "usata tradizionalmente per", mai "cura" o "guarisce".
 - In "preparazione" spiega come si prepara (infuso, decotto, impacco, succo fresco). Metti le quantita' SOLO se la tossicita' e' nessuna o lieve; se e' media o alta scrivi "nessuna dose indicata: pianta tossica".
 - In "cautele" metti 2-4 avvertenze fra gravidanza e allattamento, allergie, fotosensibilita', uso prolungato, interazione con farmaci.
 - Se la pianta e' tossica dillo anche nelle parti indicate come commestibili.
-Massimo 6 voci in commestibilita, 3 in sosia, 4 in usiTradizionali, 4 in cautele. Ogni testo massimo 22 parole.`;
+Massimo 6 voci in commestibilita, 3 in sosia, 4 in proveConferma, 4 in usiTradizionali, 4 in cautele. Ogni testo massimo 22 parole.`;
 }
 
 async function chiediSicurezza(dataUrl, nome, specie) {
@@ -976,10 +978,44 @@ function BloccoSicurezza({ foto, diagnosi }) {
   }
 
   const certezza = typeof dati.certezza === "number" ? dati.certezza : 0;
-  const incerta = certezza < 85;
   const tox = dati.tossicita || {};
   const parti = Array.isArray(dati.commestibilita) ? dati.commestibilita.filter((x) => x && x.parte) : [];
-  const sosia = Array.isArray(dati.sosia) ? dati.sosia.filter((x) => x && x.nome) : [];
+  /* Un sosia e' pericoloso se l'IA lo dichiara, oppure se il testo parla di veleno/tossicita'. */
+  const sosiaPericoloso = (v) =>
+    /mortal|tossic|velen/i.test(String(v.pericolo || "")) ||
+    (!/innocu/i.test(String(v.pericolo || "")) && /mortal|tossic|velen/i.test(String(v.nome || "") + " " + String(v.comeDistinguerlo || "")));
+  const sosia = (Array.isArray(dati.sosia) ? dati.sosia.filter((x) => x && x.nome) : [])
+    .sort((a, b) => Number(sosiaPericoloso(b)) - Number(sosiaPericoloso(a)));
+  const rischioSosia = sosia.some(sosiaPericoloso);
+  /* Regola fissa nel codice, indipendente da cosa scrive l'IA: il verde "commestibile"
+     compare solo con certezza >= 95% e nessun sosia tossico o mortale. */
+  const incerta = certezza < 95 || rischioSosia;
+  const prove = Array.isArray(dati.proveConferma) ? dati.proveConferma.filter((x) => x && String(x).trim()) : [];
+  const statoMostrato = (stato) => {
+    const k = String(stato || "").toLowerCase().trim();
+    if (incerta && (k === "commestibile" || k === "solo cotta")) return { testo: "solo dopo verifica esperto", colore: "#c98a1e" };
+    return { testo: stato || "da verificare", colore: coloreStato(stato) };
+  };
+  const bloccoSosia = sosia.length > 0 && (
+    <div className="rounded-2xl px-3 py-3" style={{ backgroundColor: C.allerta + "10", border: `1px solid ${C.allerta}33` }}>
+      <p className="text-base font-semibold" style={{ color: C.allerta }}>
+        {rischioSosia ? "Attenzione: si confonde con specie velenose" : "Si confonde con"}
+      </p>
+      <ul className="mt-2 space-y-2">
+        {sosia.map((v, i) => (
+          <li key={i}>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-base font-semibold" style={{ color: C.testo }}>{v.nome}</p>
+              {v.pericolo && (
+                <Etichetta testo={v.pericolo} colore={sosiaPericoloso(v) ? C.allerta : C.soft} />
+              )}
+            </div>
+            <p className="text-sm" style={{ color: C.soft }}>{v.comeDistinguerlo}</p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
   const usi = Array.isArray(dati.usiTradizionali) ? dati.usiTradizionali.filter((x) => x && x.titolo) : [];
   const cautele = Array.isArray(dati.cautele) ? dati.cautele.filter((x) => x && String(x).trim()) : [];
 
@@ -991,6 +1027,15 @@ function BloccoSicurezza({ foto, diagnosi }) {
           testo={"Identificazione " + certezza + "%"}
           colore={incerta ? C.allerta : C.salute}
         />
+      </div>
+
+      <div className="rounded-2xl px-3 py-2" style={{ backgroundColor: C.allerta + "14", border: `1px solid ${C.allerta}33` }}>
+        <p className="text-sm font-semibold" style={{ color: C.allerta }}>
+          Questa scheda aiuta a riconoscere, non autorizza a raccogliere o mangiare.
+        </p>
+        <p className="text-sm mt-1 leading-relaxed" style={{ color: C.testo }}>
+          Prima di consumare una pianta spontanea fai sempre le prove di conferma e chiedi a una persona esperta.
+        </p>
       </div>
 
       {specieDiversa(diagnosi.nomeScientifico, dati.specieConfermata) && (
@@ -1010,11 +1055,17 @@ function BloccoSicurezza({ foto, diagnosi }) {
         {tox.partiTossiche && <p className="text-sm mt-1" style={{ color: C.soft }}><strong style={{ color: C.testo }}>Parti da evitare:</strong> {tox.partiTossiche}</p>}
       </div>
 
+      {rischioSosia && bloccoSosia}
+
       {parti.length > 0 && (
         <div>
           {incerta && (
             <div className="rounded-2xl px-3 py-2 mb-2" style={{ backgroundColor: C.allerta, color: "#fff" }}>
-              <p className="text-sm font-semibold">Identificazione non sicura ({certezza}%)</p>
+              <p className="text-sm font-semibold">
+                {rischioSosia
+                  ? "Esiste un sosia velenoso: nessuna parte va considerata commestibile senza verifica"
+                  : "Identificazione non abbastanza sicura (" + certezza + "%)"}
+              </p>
               <p className="text-sm mt-1 leading-relaxed">
                 Non mangiare nulla sulla base di questa scheda: fai confermare la specie a un esperto.
               </p>
@@ -1026,7 +1077,7 @@ function BloccoSicurezza({ foto, diagnosi }) {
               <div key={i} className="rounded-2xl px-3 py-2" style={{ backgroundColor: C.velo }}>
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-base font-semibold capitalize" style={{ color: C.testo }}>{v.parte}</p>
-                  <Etichetta testo={v.stato || "da verificare"} colore={coloreStato(v.stato)} />
+                  <Etichetta testo={statoMostrato(v.stato).testo} colore={statoMostrato(v.stato).colore} />
                 </div>
                 {v.nota && <p className="text-sm mt-1" style={{ color: C.soft }}>{v.nota}</p>}
               </div>
@@ -1035,15 +1086,15 @@ function BloccoSicurezza({ foto, diagnosi }) {
         </div>
       )}
 
-      {sosia.length > 0 && (
-        <div className="rounded-2xl px-3 py-3" style={{ backgroundColor: C.allerta + "10", border: `1px solid ${C.allerta}33` }}>
-          <p className="text-base font-semibold" style={{ color: C.allerta }}>Si confonde con</p>
-          <ul className="mt-2 space-y-2">
-            {sosia.map((v, i) => (
-              <li key={i}>
-                <p className="text-base font-semibold" style={{ color: C.testo }}>{v.nome}</p>
-                <p className="text-sm" style={{ color: C.soft }}>{v.comeDistinguerlo}</p>
-              </li>
+      {!rischioSosia && bloccoSosia}
+
+      {prove.length > 0 && (
+        <div className="rounded-2xl px-3 py-3" style={{ backgroundColor: C.velo, border: `1px solid ${C.bordo}` }}>
+          <p className="text-base font-semibold" style={{ color: C.testo }}>Prove di conferma sul campo</p>
+          <p className="text-xs mt-1" style={{ color: C.soft }}>Controlli che la foto non può mostrare. Se anche uno solo non torna, non raccogliere.</p>
+          <ul className="mt-2 space-y-1">
+            {prove.map((v, i) => (
+              <li key={i} className="text-sm" style={{ color: C.testo }}>• {v}</li>
             ))}
           </ul>
         </div>
