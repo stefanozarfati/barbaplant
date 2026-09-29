@@ -3,7 +3,16 @@
 // interroga Gemini. La chiave non viaggia mai dentro il telefono dell'utente.
 
 // gemini-2.5-flash non e' piu' disponibile per i nuovi utenti (Google, settembre 2026).
-const MODELLI = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash"];
+// Piano gratuito (settembre 2026): i Flash hanno 20 richieste al giorno ciascuno,
+// i Flash-Lite 500 al giorno. Prima i piu' bravi, poi i Lite come ampia riserva.
+const MODELLI = [
+  "gemini-3.8-flash",
+  "gemini-3.7-flash",
+  "gemini-3.6-flash",
+  "gemini-3.5-flash",
+  "gemini-3.5-flash-lite",
+  "gemini-3.1-flash-lite",
+];
 
 const SCHEMA = `{
  "nomeComune":"",
@@ -340,8 +349,8 @@ export default async function handler(req, res) {
           sovraccarico = ultimo;
           continue;
         }
-        if (risposta.status === 404 || /not found|not supported|is not available/i.test(grezzo)) continue;
-        return res.status(502).json({ errore: ultimo });
+        // Qualsiasi altro errore (modello non disponibile, parametro non accettato...): si prova il successivo.
+        continue;
       }
 
       const dati = JSON.parse(grezzo);
