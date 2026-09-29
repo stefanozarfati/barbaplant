@@ -216,6 +216,41 @@ function unisciPlantNet(testo, pn) {
   return JSON.stringify(j);
 }
 
+// Controllo diagnostico: apri https://barbaplant.vercel.app/api/analizza?prova=1
+// Manda a ogni modello una domanda minuscola e mostra la risposta vera di Google. Le chiavi non vengono mai mostrate.
+async function provaModelli(res) {
+  const chiave = process.env.GEMINI_API_KEY;
+  const righe = [
+    "CONTROLLO BARBAPLANT - " + new Date().toISOString(),
+    "Chiave Gemini presente: " + (chiave ? "si" : "NO"),
+    "Chiave Pl@ntNet presente: " + (process.env.PLANTNET_API_KEY ? "si" : "NO"),
+    "",
+  ];
+  for (const modello of MODELLI) {
+    const t0 = Date.now();
+    const controllo = new AbortController();
+    const timer = setTimeout(() => controllo.abort(), 20000);
+    try {
+      const r = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + modello + ":generateContent", {
+        method: "POST",
+        signal: controllo.signal,
+        headers: { "Content-Type": "application/json", "x-goog-api-key": chiave || "" },
+        body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: "Rispondi solo: ok" }] }] }),
+      });
+      const testo = await r.text();
+      let msg = "";
+      try { const j = JSON.parse(testo); msg = j.error ? (j.error.status || "") + " - " + (j.error.message || "") : "risposta ricevuta"; } catch { msg = testo.slice(0, 200); }
+      righe.push(modello + ": codice " + r.status + " in " + (Date.now() - t0) + " ms -> " + msg.slice(0, 300));
+    } catch (e) {
+      righe.push(modello + ": " + (e.name === "AbortError" ? "NESSUNA RISPOSTA in 20 secondi" : "errore di rete " + e.message));
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  return res.status(200).send(righe.join("\n\n"));
+}
+
 export default async function handler(req, res) {
   // Se pubblichi su un dominio tuo, metti quell'indirizzo nella variabile ORIGINE_CONSENTITA
   res.setHeader("Access-Control-Allow-Origin", process.env.ORIGINE_CONSENTITA || "*");
@@ -223,6 +258,7 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
   if (req.method === "OPTIONS") return res.status(204).end();
+  if (req.method === "GET" && req.query && req.query.prova) return provaModelli(res);
   if (req.method !== "POST") return res.status(405).json({ errore: "Metodo non consentito" });
 
   const chiave = process.env.GEMINI_API_KEY;
@@ -292,7 +328,14 @@ export default async function handler(req, res) {
         ultimo = "Google ha risposto " + risposta.status + ": " + grezzo.slice(0, 200);
         // 503 = modello sovraccarico, 429 = troppe richieste, 500 = errore di Google:
         // sono problemi temporanei di quel modello, quindi si prova subito il successivo.
-        if (risposta.status === 429 || risposta.status >= 500) {
+        if (risposta.status === 429) {
+          // quota della chiave esaurita (o modello non incluso nel piano): aspettare non serve
+          let dettaglio = "";
+          try { dettaglio = JSON.parse(grezzo).error.message || ""; } catch { /* testo grezzo */ }
+          ultimo = "quota Google esaurita per " + modello + " (429): " + (dettaglio || grezzo).slice(0, 160);
+          continue;
+        }
+        if (risposta.status >= 500) {
           ultimo = "Google è sovraccarico in questo momento (" + risposta.status + "): riprova tra un minuto";
           sovraccarico = ultimo;
           continue;

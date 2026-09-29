@@ -645,18 +645,9 @@ async function conPazienza(operazione) {
 }
 
 async function analizzaFoto(dataUrl, contesto = "") {
-  return conPazienza(async () => {
-    let ultimoErrore;
-    for (let tentativo = 0; tentativo < 2; tentativo++) {
-      try {
-        return await unTentativo(dataUrl, contesto);
-      } catch (err) {
-        ultimoErrore = err;
-        if (/sovraccaric/i.test(String(err && err.message))) break; // inutile riprovare subito
-      }
-    }
-    throw ultimoErrore;
-  });
+  /* Un solo tentativo per volta: il server prova gia' da solo tre modelli, e ogni tentativo
+     in piu' consuma la quota giornaliera di Google. Si riprova solo se Google e' sovraccarico. */
+  return conPazienza(() => unTentativo(dataUrl, contesto));
 }
 
 function ricalibraStagione(pianta, stagione) {
