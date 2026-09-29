@@ -614,19 +614,49 @@ async function unTentativo(dataUrl, contesto) {
   return normalizza(json, stagione);
 }
 
-async function analizzaFoto(dataUrl, contesto = "") {
-  let ultimoErrore;
-  for (let tentativo = 0; tentativo < 2; tentativo++) {
+/* Quando Google e' sovraccarico su tutti i modelli, invece di arrendersi si aspetta
+   20 secondi e si riprova da soli (al massimo 2 volte). Il banner in alto mostra il conto alla rovescia. */
+const ATTESA_SOVRACCARICO = 20000;
+const ATTESE_MASSIME = 2;
+function annunciaAttesa(secondi) {
+  try { window.dispatchEvent(new CustomEvent("bp:attesa", { detail: secondi })); } catch { /* niente banner */ }
+}
+async function conPazienza(operazione) {
+  for (let giro = 0; ; giro++) {
     try {
-      return await unTentativo(dataUrl, contesto);
+      const risultato = await operazione();
+      annunciaAttesa(0);
+      return risultato;
     } catch (err) {
-      ultimoErrore = err;
+      if (!/sovraccaric/i.test(String(err && err.message)) || giro >= ATTESE_MASSIME) {
+        annunciaAttesa(0);
+        throw err;
+      }
+      annunciaAttesa(ATTESA_SOVRACCARICO / 1000);
+      await new Promise((r) => setTimeout(r, ATTESA_SOVRACCARICO));
     }
   }
-  throw ultimoErrore;
 }
 
-async function ricalibraStagione(pianta, stagione) {
+async function analizzaFoto(dataUrl, contesto = "") {
+  return conPazienza(async () => {
+    let ultimoErrore;
+    for (let tentativo = 0; tentativo < 2; tentativo++) {
+      try {
+        return await unTentativo(dataUrl, contesto);
+      } catch (err) {
+        ultimoErrore = err;
+        if (/sovraccaric/i.test(String(err && err.message))) break; // inutile riprovare subito
+      }
+    }
+    throw ultimoErrore;
+  });
+}
+
+function ricalibraStagione(pianta, stagione) {
+  return conPazienza(() => ricalibraStagioneUnaVolta(pianta, stagione));
+}
+async function ricalibraStagioneUnaVolta(pianta, stagione) {
   if (serverDisponibile() || !haAlternativa()) {
     try {
       const t = await chiamaServer({ tipo: "stagione", pianta: { nome: pianta.nome, specie: pianta.specie, salute: pianta.salute }, stagione });
@@ -668,7 +698,10 @@ Regole obbligatorie:
 Massimo 6 voci in commestibilita, 3 in sosia, 4 in proveConferma, 4 in usiTradizionali, 4 in cautele. Ogni testo massimo 22 parole.`;
 }
 
-async function chiediSicurezza(dataUrl, nome, specie) {
+function chiediSicurezza(dataUrl, nome, specie) {
+  return conPazienza(() => chiediSicurezzaUnaVolta(dataUrl, nome, specie));
+}
+async function chiediSicurezzaUnaVolta(dataUrl, nome, specie) {
   const mediaType = dataUrl.slice(5, dataUrl.indexOf(";"));
   const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
 
@@ -884,6 +917,36 @@ function Etichetta({ testo, colore = C.primario }) {
     >
       {testo}
     </span>
+  );
+}
+
+/* Banner fisso in alto: compare solo mentre l'app aspetta che Google si liberi. */
+function BannerAttesa() {
+  const [secondi, setSecondi] = useState(0);
+  useEffect(() => {
+    const ascolta = (e) => setSecondi(Number(e.detail) || 0);
+    window.addEventListener("bp:attesa", ascolta);
+    return () => window.removeEventListener("bp:attesa", ascolta);
+  }, []);
+  useEffect(() => {
+    if (secondi <= 0) return undefined;
+    const t = setTimeout(() => setSecondi((s) => Math.max(0, s - 1)), 1000);
+    return () => clearTimeout(t);
+  }, [secondi]);
+  if (secondi <= 0) return null;
+  return (
+    <div
+      className="fixed left-0 right-0 top-0 z-50 flex justify-center px-3"
+      style={{ paddingTop: "calc(env(safe-area-inset-top) + 8px)" }}
+    >
+      <div
+        className="rounded-2xl px-4 py-3 text-sm font-semibold shadow-lg flex items-center gap-2"
+        style={{ backgroundColor: "#c98a1e", color: "#fff", maxWidth: 450 }}
+      >
+        <span>⏳</span>
+        <span>Google è occupato: riprovo da solo tra {secondi} secondi…</span>
+      </div>
+    </div>
   );
 }
 
@@ -1755,6 +1818,7 @@ export default function App() {
   return (
     <div className="min-h-screen w-full" style={{ backgroundColor: C.bg, color: C.testo, fontFamily: 'ui-rounded, "SF Pro Rounded", "Nunito", "Quicksand", system-ui, sans-serif' }}>
       {mostraApertura && <SchermataApertura visibile={mostraApertura} />}
+      <BannerAttesa />
       <input ref={inputFoto} type="file" accept="image/*" onChange={gestisciFoto} className="hidden" />
 
       <div className="mx-auto w-full" style={{ maxWidth: 450 }}>
