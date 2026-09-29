@@ -2,7 +2,8 @@
 // Riceve la foto dall'app, aggiunge la chiave Google (che sta solo qui) e
 // interroga Gemini. La chiave non viaggia mai dentro il telefono dell'utente.
 
-const MODELLI = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-2.5-flash"];
+// gemini-2.5-flash non e' piu' disponibile per i nuovi utenti (Google, settembre 2026).
+const MODELLI = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash"];
 
 const SCHEMA = `{
  "nomeComune":"",
@@ -255,6 +256,7 @@ export default async function handler(req, res) {
   }
 
   let ultimo = "Nessun modello disponibile";
+  let sovraccarico = "";
   for (const modello of MODELLI) {
     try {
       const risposta = await fetch(
@@ -281,6 +283,7 @@ export default async function handler(req, res) {
         // sono problemi temporanei di quel modello, quindi si prova subito il successivo.
         if (risposta.status === 429 || risposta.status >= 500) {
           ultimo = "Google è sovraccarico in questo momento (" + risposta.status + "): riprova tra un minuto";
+          sovraccarico = ultimo;
           continue;
         }
         if (risposta.status === 404 || /not found|not supported|is not available/i.test(grezzo)) continue;
@@ -299,6 +302,8 @@ export default async function handler(req, res) {
     }
   }
 
+  // Se almeno un modello era solo sovraccarico, e' quello il messaggio utile (l'app riprova da sola).
+  if (sovraccarico) ultimo = sovraccarico;
   if (plantnet) {
     const nome = plantnet.nomeComune ? `${plantnet.nomeComune} (${plantnet.nomeScientifico})` : plantnet.nomeScientifico;
     ultimo = `Pianta riconosciuta da Pl@ntNet: ${nome}, certezza ${plantnet.certezza}%. Salute e cure non disponibili: ${ultimo}`;
