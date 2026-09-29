@@ -152,6 +152,69 @@ Aggiorna il piano di cura per questa stagione. Rispondi SOLO con JSON valido, in
 Metti 3 voci per ciascuna lista, ogni dettaglio massimo 18 parole.`;
 }
 
+// ---------------- Pl@ntNet: riconoscimento specializzato della specie ----------------
+// Se la chiave PLANTNET_API_KEY c'e' su Vercel, Pl@ntNet decide CHE pianta e';
+// Gemini poi si occupa di salute e cure. Senza chiave tutto funziona come prima.
+const SOGLIA_PLANTNET = 0.3; // sotto il 30% Pl@ntNet non decide da solo: propone candidati a Gemini
+
+async function chiediPlantNet(immagine, mediaType) {
+  const chiave = process.env.PLANTNET_API_KEY;
+  if (!chiave || !immagine) return null;
+  const controllo = new AbortController();
+  const timer = setTimeout(() => controllo.abort(), 15000);
+  try {
+    const modulo = new FormData();
+    const dati = Buffer.from(immagine, "base64");
+    modulo.append("images", new Blob([dati], { type: mediaType || "image/jpeg" }), "foto.jpg");
+    modulo.append("organs", "auto");
+    const indirizzo =
+      "https://my-api.plantnet.org/v2/identify/all?lang=it&nb-results=3&include-related-images=false&api-key=" +
+      encodeURIComponent(chiave);
+    const risposta = await fetch(indirizzo, { method: "POST", body: modulo, signal: controllo.signal });
+    if (!risposta.ok) return null; // 404 = nessuna pianta trovata; altri errori: si prosegue solo con Gemini
+    const json = await risposta.json();
+    const risultati = (json.results || []).filter((r) => r && r.species);
+    if (!risultati.length) return null;
+    const voce = (r) => ({
+      nomeComune: (r.species.commonNames || [])[0] || "",
+      nomeScientifico: r.species.scientificNameWithoutAuthor || r.species.scientificName || "",
+      famiglia: (r.species.family && (r.species.family.scientificNameWithoutAuthor || r.species.family.scientificName)) || "",
+      certezza: Math.round((r.score || 0) * 100),
+    });
+    const [primo, ...altri] = risultati.map(voce);
+    return { fonte: "Pl@ntNet", ...primo, alternative: altri.slice(0, 2) };
+  } catch {
+    return null; // Pl@ntNet lento o non raggiungibile: non blocca l'analisi
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function contestoPlantNet(pn) {
+  if (!pn) return "";
+  const nome = (v) => `${v.nomeComune ? v.nomeComune + " " : ""}(${v.nomeScientifico}, ${v.certezza}%)`;
+  if (pn.certezza / 100 >= SOGLIA_PLANTNET) {
+    return `\nIDENTIFICAZIONE GIA' FATTA da Pl@ntNet, servizio botanico specializzato: ${nome(pn)}.
+Usa questa specie per nomeComune e nomeScientifico e basa salute e cure su di essa. Non cambiarla.`;
+  }
+  const lista = [pn, ...pn.alternative].map(nome).join("; ");
+  return `\nPl@ntNet, servizio botanico specializzato, e' incerto. Candidati: ${lista}.
+Scegli fra questi quello coerente con la foto (o un altro solo se sei sicuro) e scrivi nella "sintesi" che il riconoscimento e' incerto.`;
+}
+
+function unisciPlantNet(testo, pn) {
+  if (!pn) return testo;
+  let j;
+  try { j = JSON.parse(testo); } catch { return testo; }
+  if (pn.certezza / 100 >= SOGLIA_PLANTNET) {
+    j.nomeScientifico = pn.nomeScientifico;
+    if (pn.nomeComune) j.nomeComune = pn.nomeComune;
+    else if (!j.nomeComune || /nessuna pianta/i.test(j.nomeComune)) j.nomeComune = pn.nomeScientifico;
+  }
+  j.identificazione = pn;
+  return JSON.stringify(j);
+}
+
 export default async function handler(req, res) {
   // Se pubblichi su un dominio tuo, metti quell'indirizzo nella variabile ORIGINE_CONSENTITA
   res.setHeader("Access-Control-Allow-Origin", process.env.ORIGINE_CONSENTITA || "*");
@@ -170,6 +233,7 @@ export default async function handler(req, res) {
   const { tipo, immagine, mediaType, contesto, pianta, stagione } = corpo;
 
   let parti, schema;
+  let plantnet = null;
   if (tipo === "sicurezza") {
     if (!immagine) return res.status(400).json({ errore: "Manca la foto da analizzare" });
     parti = [
@@ -182,9 +246,10 @@ export default async function handler(req, res) {
     schema = SCHEMA_STAGIONE;
   } else {
     if (!immagine) return res.status(400).json({ errore: "Manca la foto da analizzare" });
+    plantnet = await chiediPlantNet(immagine, mediaType);
     parti = [
       { inline_data: { mime_type: mediaType || "image/jpeg", data: immagine } },
-      { text: promptDiagnosi(stagione, contesto) },
+      { text: promptDiagnosi(stagione, contesto) + contestoPlantNet(plantnet) },
     ];
     schema = SCHEMA_DIAGNOSI;
   }
@@ -228,11 +293,15 @@ export default async function handler(req, res) {
         .join("");
 
       if (!testo) { ultimo = "Risposta vuota dal modello " + modello; continue; }
-      return res.status(200).json({ testo, modello });
+      return res.status(200).json({ testo: tipo === "diagnosi" ? unisciPlantNet(testo, plantnet) : testo, modello });
     } catch (e) {
       ultimo = e.message;
     }
   }
 
+  if (plantnet) {
+    const nome = plantnet.nomeComune ? `${plantnet.nomeComune} (${plantnet.nomeScientifico})` : plantnet.nomeScientifico;
+    ultimo = `Pianta riconosciuta da Pl@ntNet: ${nome}, certezza ${plantnet.certezza}%. Salute e cure non disponibili: ${ultimo}`;
+  }
   return res.status(502).json({ errore: ultimo });
 }

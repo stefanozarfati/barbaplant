@@ -566,7 +566,8 @@ function normalizza(json, stagione) {
     curaProfessionale: lista(json.curaProfessionale),
     consiglioStagionale: json.consiglioStagionale || STAGIONI[stagione].claim,
     simulata: false,
-    motore: serverDisponibile() ? "Gemini" : CFG.proxy ? "Claude" : CFG.chiave ? "Gemini" : "Claude",
+    motore: json.identificazione ? "Pl@ntNet + Gemini" : serverDisponibile() ? "Gemini" : CFG.proxy ? "Claude" : CFG.chiave ? "Gemini" : "Claude",
+    identificazione: json.identificazione || null,
   };
 }
 
@@ -1245,6 +1246,26 @@ function BloccoSicurezza({ foto, diagnosi }) {
   );
 }
 
+/* Quanto e' sicuro Pl@ntNet del riconoscimento, con le alternative se non e' sicuro. */
+function RigaPlantNet({ id }) {
+  const certezza = Number(id.certezza) || 0;
+  const colore = certezza >= 70 ? C.primario : certezza >= 30 ? "#c98a1e" : C.allerta;
+  const alternative = (id.alternative || []).filter((a) => a && a.nomeScientifico);
+  return (
+    <div className="mt-2">
+      <p className="text-sm font-semibold" style={{ color: colore }}>
+        Specie riconosciuta da Pl@ntNet · certezza {certezza}%
+      </p>
+      {certezza < 70 && alternative.length > 0 && (
+        <p className="text-xs mt-0.5" style={{ color: C.soft }}>
+          Potrebbe essere anche:{" "}
+          {alternative.map((a) => (a.nomeComune ? a.nomeComune + " (" + a.nomeScientifico + ")" : a.nomeScientifico) + " " + a.certezza + "%").join(", ")}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function SchedaDiagnosi({ diagnosi, foto }) {
   if (!diagnosi) return null;
   return (
@@ -1259,6 +1280,7 @@ function SchedaDiagnosi({ diagnosi, foto }) {
               ? <Etichetta testo="Diagnosi dimostrativa" colore={C.soft} />
               : diagnosi.motore && <Etichetta testo={"Analisi " + diagnosi.motore} colore={C.primario} />}
           </div>
+          {diagnosi.identificazione && <RigaPlantNet id={diagnosi.identificazione} />}
         </div>
       </div>
 
