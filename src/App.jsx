@@ -233,24 +233,48 @@ function scriviArchivio(dati) {
    arrivano all'anteprima già in un formato che si vede per certo. */
 /* 2048 px: serve dettaglio per riconoscere foglie e corteccia (soprattutto alberi).
    Il salvataggio in collezione ricomprime comunque con fotoLeggera/fotoStorica. */
-function ridimensiona(dataUrl, latoMax = 2048, qualita = 0.9) {
+/* Il server di Vercel accetta al massimo 4,5 MB per richiesta: la foto in base64
+   resta sotto circa 3 MB, riducendo prima la qualita' e poi, se serve, i pixel. */
+const LIMITE_INVIO = 3000000;
+/* Accetta sia il file appena scelto (letto senza caricarlo tutto in memoria come testo,
+   cosa che con le foto pesanti dell'iPhone falliva) sia una foto gia' in formato dataURL. */
+function ridimensiona(sorgente, latoMax = 2048, qualita = 0.9) {
   return new Promise((risolvi, rifiuta) => {
+    const daFile = typeof sorgente !== "string";
+    const indirizzo = daFile ? URL.createObjectURL(sorgente) : sorgente;
+    const libera = () => { if (daFile) URL.revokeObjectURL(indirizzo); };
     const img = new Image();
     img.onload = () => {
-      const scala = Math.min(1, latoMax / Math.max(img.width, img.height));
-      const tela = document.createElement("canvas");
-      tela.width = Math.round(img.width * scala);
-      tela.height = Math.round(img.height * scala);
-      const ctx = tela.getContext("2d");
-      ctx.drawImage(img, 0, 0, tela.width, tela.height);
       try {
-        risolvi(tela.toDataURL("image/jpeg", qualita));
+        const larghezza = img.naturalWidth || img.width;
+        const altezza = img.naturalHeight || img.height;
+        let lato = latoMax;
+        let q = qualita;
+        let risultato = "";
+        for (let giro = 0; giro < 8; giro++) {
+          const scala = Math.min(1, lato / Math.max(larghezza, altezza));
+          const tela = document.createElement("canvas");
+          tela.width = Math.round(larghezza * scala);
+          tela.height = Math.round(altezza * scala);
+          tela.getContext("2d").drawImage(img, 0, 0, tela.width, tela.height);
+          risultato = tela.toDataURL("image/jpeg", q);
+          if (risultato.length <= LIMITE_INVIO) break;
+          if (q > 0.75) q = Math.round((q - 0.1) * 100) / 100;
+          else lato = Math.round(lato * 0.8);
+        }
+        libera();
+        if (!risultato || risultato.length < 100) throw new Error("vuota");
+        risolvi(risultato);
       } catch {
+        libera();
         rifiuta(new Error("Non è stato possibile elaborare questa foto."));
       }
     };
-    img.onerror = () => rifiuta(new Error("Formato foto non supportato dal browser. Prova con un'altra foto (JPG o PNG)."));
-    img.src = dataUrl;
+    img.onerror = () => {
+      libera();
+      rifiuta(new Error("Formato foto non supportato dal browser. Prova con un'altra foto (JPG o PNG)."));
+    };
+    img.src = indirizzo;
   });
 }
 
@@ -464,15 +488,27 @@ function mettiInPausaIlServer() {
   SERVER_IN_PAUSA_FINO_A = Date.now() + 20000;
 }
 
+/* L'app online usa solo il server: le strade alternative servono se l'utente
+   ha inserito una chiave o un proxy suoi (oggi mai). Senza, l'errore vero va mostrato. */
+function haAlternativa() {
+  return Boolean(CFG.proxy || CFG.chiave);
+}
+
 async function chiamaServer(corpo) {
   const risposta = await fetch("/api/analizza", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(corpo),
+  }).catch((e) => {
+    throw new Error("server non raggiungibile, controlla la connessione (" + e.message + ")");
   });
   const testo = await risposta.text();
   let dati;
-  try { dati = JSON.parse(testo); } catch { throw new Error("Il server ha risposto in modo non leggibile"); }
+  try { dati = JSON.parse(testo); } catch {
+    if (risposta.status === 413) throw new Error("foto troppo pesante per il server");
+    if (risposta.status === 504) throw new Error("il server ha impiegato troppo tempo a rispondere");
+    throw new Error("il server ha risposto in modo non leggibile (codice " + risposta.status + ")");
+  }
   if (!risposta.ok || dati.errore) throw new Error(dati.errore || "Errore del server " + risposta.status);
   return dati.testo;
 }
@@ -541,14 +577,17 @@ async function unTentativo(dataUrl, contesto) {
   const istruzioni = `${PROMPT_DIAGNOSI}\n\nStagione attuale: ${stagione}.\nContesto fornito dall'utente: ${contesto || "nessuno"}.`;
 
   let testo;
+  let erroreServer;
 
-  if (serverDisponibile()) {
+  if (serverDisponibile() || !haAlternativa()) {
     try {
       testo = await chiamaServer({ tipo: "diagnosi", immagine: base64, mediaType, contesto, stagione });
     } catch (e) {
-      mettiInPausaIlServer();
+      erroreServer = e;
+      if (haAlternativa()) mettiInPausaIlServer();
     }
   }
+  if (!testo && !haAlternativa()) throw erroreServer || new Error("server non disponibile");
 
   if (testo) {
     const j = estraiJSON(testo);
@@ -588,12 +627,14 @@ async function analizzaFoto(dataUrl, contesto = "") {
 }
 
 async function ricalibraStagione(pianta, stagione) {
-  if (serverDisponibile()) {
+  if (serverDisponibile() || !haAlternativa()) {
     try {
       const t = await chiamaServer({ tipo: "stagione", pianta: { nome: pianta.nome, specie: pianta.specie, salute: pianta.salute }, stagione });
       const j = estraiJSON(t);
       if (j) return j;
+      if (!haAlternativa()) throw new Error("risposta non leggibile");
     } catch (e) {
+      if (!haAlternativa()) throw e;
       mettiInPausaIlServer();
     }
   }
@@ -631,7 +672,7 @@ async function chiediSicurezza(dataUrl, nome, specie) {
   const mediaType = dataUrl.slice(5, dataUrl.indexOf(";"));
   const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
 
-  if (serverDisponibile()) {
+  if (serverDisponibile() || !haAlternativa()) {
     try {
       const t = await chiamaServer({
         tipo: "sicurezza",
@@ -641,7 +682,9 @@ async function chiediSicurezza(dataUrl, nome, specie) {
       });
       const j = estraiJSON(t);
       if (j) return j;
+      if (!haAlternativa()) throw new Error("risposta non leggibile");
     } catch (e) {
+      if (!haAlternativa()) throw e;
       mettiInPausaIlServer();
     }
   }
@@ -1344,12 +1387,8 @@ export default function App() {
       setErrore("Il file scelto non è un'immagine. Seleziona una foto in formato JPG o PNG.");
       return;
     }
-    if (file.size > 8 * 1024 * 1024) {
-      setErrore("La foto supera 8 MB. Scattala di nuovo a risoluzione più bassa.");
-      return;
-    }
     try {
-      const dataUrl = await ridimensiona(await leggiFile(file));
+      const dataUrl = await ridimensiona(file);
       setFotoCorrente(dataUrl);
       setAnalisi(null);
       setErrore("");
@@ -1918,12 +1957,12 @@ function ModaleAggiungi({ onChiudi, onSalva, leggiFile }) {
     if (!file.type.startsWith("image/")) { setErrore("Serve un'immagine JPG o PNG."); return; }
     let dataUrl;
     try {
-      dataUrl = await ridimensiona(await leggiFile(file));
+      dataUrl = await ridimensiona(file);
       setFoto(dataUrl);
       setDiagnosiRaccolta(null);
       setErrore("");
-    } catch {
-      setErrore("Lettura del file non riuscita. Prova con un'altra foto.");
+    } catch (err) {
+      setErrore("Lettura del file non riuscita (" + err.message + "). Prova con un'altra foto.");
       return;
     }
 
@@ -2060,7 +2099,7 @@ function DettaglioPianta({ pianta, stagione, onChiudi, onAggiorna, onElimina, le
     e.target.value = "";
     if (!file) return;
     try {
-      const dataUrl = await ridimensiona(await leggiFile(file));
+      const dataUrl = await ridimensiona(file);
       await tentaAnalisiEvoluzione(dataUrl);
     } catch (err) {
       setErrore(err.message);
