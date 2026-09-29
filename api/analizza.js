@@ -212,6 +212,12 @@ export default async function handler(req, res) {
       const grezzo = await risposta.text();
       if (!risposta.ok) {
         ultimo = "Google ha risposto " + risposta.status + ": " + grezzo.slice(0, 200);
+        // 503 = modello sovraccarico, 429 = troppe richieste, 500 = errore di Google:
+        // sono problemi temporanei di quel modello, quindi si prova subito il successivo.
+        if (risposta.status === 429 || risposta.status >= 500) {
+          ultimo = "Google è sovraccarico in questo momento (" + risposta.status + "): riprova tra un minuto";
+          continue;
+        }
         if (risposta.status === 404 || /not found|not supported|is not available/i.test(grezzo)) continue;
         return res.status(502).json({ errore: ultimo });
       }
