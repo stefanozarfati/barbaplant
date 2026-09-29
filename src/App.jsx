@@ -495,13 +495,18 @@ function haAlternativa() {
 }
 
 async function chiamaServer(corpo) {
+  /* Il server si ferma da solo entro circa un minuto: se dopo 75 secondi non ha risposto, si smette di aspettare. */
+  const controllo = new AbortController();
+  const timer = setTimeout(() => controllo.abort(), 75000);
   const risposta = await fetch("/api/analizza", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(corpo),
+    signal: controllo.signal,
   }).catch((e) => {
+    if (e.name === "AbortError") throw new Error("Google è sovraccarico: nessuna risposta entro 75 secondi");
     throw new Error("server non raggiungibile, controlla la connessione (" + e.message + ")");
-  });
+  }).finally(() => clearTimeout(timer));
   const testo = await risposta.text();
   let dati;
   try { dati = JSON.parse(testo); } catch {

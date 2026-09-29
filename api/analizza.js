@@ -257,18 +257,29 @@ export default async function handler(req, res) {
 
   let ultimo = "Nessun modello disponibile";
   let sovraccarico = "";
+  // Tempo massimo complessivo: meglio un messaggio chiaro che una rotellina infinita.
+  const inizio = Date.now();
+  const LIMITE_TOTALE = 55000; // ms per tutti i tentativi
+  const LIMITE_MODELLO = 25000; // ms per singolo modello
   for (const modello of MODELLI) {
+    const restante = LIMITE_TOTALE - (Date.now() - inizio);
+    if (restante < 8000) break;
+    const controllo = new AbortController();
+    const timer = setTimeout(() => controllo.abort(), Math.min(LIMITE_MODELLO, restante));
+    // gemini-3.8-flash: niente temperature (Google chiede di toglierla) e ragionamento "low" per rispondere prima.
+    const config38 = modello.startsWith("gemini-3.8");
     try {
       const risposta = await fetch(
         "https://generativelanguage.googleapis.com/v1beta/models/" + modello + ":generateContent",
         {
           method: "POST",
           headers: { "Content-Type": "application/json", "x-goog-api-key": chiave },
+          signal: controllo.signal,
           body: JSON.stringify({
             contents: [{ role: "user", parts: parti }],
             generationConfig: {
-              temperature: 0.4,
-              maxOutputTokens: tipo === "sicurezza" ? 4000 : 3000,
+              ...(config38 ? { thinkingConfig: { thinkingLevel: "low" } } : { temperature: 0.4 }),
+              maxOutputTokens: config38 ? 8000 : tipo === "sicurezza" ? 4000 : 3000,
               responseMimeType: "application/json",
               responseSchema: schema,
             },
@@ -298,7 +309,14 @@ export default async function handler(req, res) {
       if (!testo) { ultimo = "Risposta vuota dal modello " + modello; continue; }
       return res.status(200).json({ testo: tipo === "diagnosi" ? unisciPlantNet(testo, plantnet) : testo, modello });
     } catch (e) {
-      ultimo = e.message;
+      if (e.name === "AbortError") {
+        ultimo = "Google è sovraccarico: il modello " + modello + " non ha risposto in tempo";
+        sovraccarico = ultimo;
+      } else {
+        ultimo = e.message;
+      }
+    } finally {
+      clearTimeout(timer);
     }
   }
 
