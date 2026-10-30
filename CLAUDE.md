@@ -10,7 +10,8 @@ App per riconoscere le piante da una foto e sapere se si possono mangiare. Da un
 
 - `src/App.jsx` — tutta l'interfaccia, un solo file (React + Tailwind, build con Vite)
 - `api/analizza.js` — la funzione sul server di Vercel: riceve la foto, interroga Pl@ntNet e Gemini, restituisce JSON
-- `vercel.json` — serve solo per `maxDuration: 60` (vedi insidia nº3)
+- `src/aggiornamento.js` — il controllo automatico della versione (vedi sotto)
+- `vercel.json` — `maxDuration: 60` (insidia nº3) e le regole di cache per `/`, `/index.html`, `/versione.json`, `/manifest.json`
 - Le chiavi stanno **solo** nelle variabili d'ambiente di Vercel: `GEMINI_API_KEY`, `PLANTNET_API_KEY`, `ORIGINE_CONSENTITA`
 
 Tre tipi di chiamata, tutte verso `/api/analizza` con un campo `tipo`:
@@ -23,6 +24,21 @@ Chi decide la specie: se `PLANTNET_API_KEY` è presente, **Pl@ntNet** la decide 
 Tempi misurati sul server vero, tre giri di fila: **diagnosi 2,4-2,7 s · commestibilità 2,3-2,5 s · stagione 1,5-1,7 s**. Prima del 30/10 la commestibilità prendeva una cinquantina di secondi e falliva spesso.
 
 Fatto in precedenza (dal registro dei commit): riconoscimento con Pl@ntNet affiancato a Gemini, pagina di controllo `?prova=1`, scheda sicurezza con sosia e prove di conferma sul campo, foto dal rullino iPhone senza limite di 8 MB, archivio con foto ridotte, identità grafica e schermata di apertura, niente diagnosi finte quando l'identificazione fallisce.
+
+## L'app si aggiorna da sola
+
+Regola fissa per tutte le app di Stefano: deve accorgersi da sola che esiste una versione più recente e aggiornarsi, senza che lui faccia niente. Qui è fatta così (dal 2026-10-31):
+
+- `vite.config.js` calcola un **timbro di versione** al momento della build: su Vercel i primi 7 caratteri del commit, in locale la data e ora. Finisce in due posti: dentro il codice (`__VERSIONE__`) e in `dist/versione.json`, scritto da un piccolo plugin. **Non si aggiorna a mano**, quindi non si può scordare.
+- `src/aggiornamento.js` all'apertura, a ogni ritorno in primo piano e al ritorno della rete scarica `versione.json` con `cache: "no-store"`. Se è diverso da quello incorporato, svuota le cache e ricarica — **una volta sola per versione** (bandierina in `sessionStorage`), così non si finisce in un ciclo.
+- `vercel.json` mette `no-store, must-revalidate` su `/` **e** su `/index.html` (la regola su `/` è quella che si dimentica: è l'indirizzo che l'app apre davvero), più su `versione.json` e `manifest.json`.
+- Se un'analisi è in corso **l'aggiornamento si rimanda** a quando ha finito, altrimenti si butterebbe via la foto. Il conteggio passa da `conPazienza` in App.jsx, unico punto da cui passano tutte e tre le operazioni.
+- Nel Profilo c'è una riga "Versione … · si aggiorna da sola": serve per sapere al telefono quale copia sta girando.
+
+**Qui non c'è e non va aggiunto un service worker.** La regola generale ne prevede uno, ma BarbaPlant non l'ha mai avuto: aggiungerlo creerebbe il problema della cache invece di risolverlo. Vite dà già nomi con l'impronta ai file, quindi basta che `index.html` non sia in cache.
+
+**Pubblicare**: qui non serve un `pubblica.sh`. Vercel ricostruisce a ogni push su `main` e il timbro si ricalcola da sé dal commit. Dopo il deploy, verificare con
+`curl -sI https://barbaplant.vercel.app/ | grep -i cache-control` e `curl -s https://barbaplant.vercel.app/versione.json`.
 
 ## La catena dei modelli: la regola che conta
 
@@ -59,7 +75,9 @@ Prima i Lite perché sono insieme i più rapidi **e** gli unici con quota larga.
 
 7. **Controllare `git fetch` prima di toccare il codice.** Il 30/10 la copia locale era **12 commit** dietro a `origin/main`: tutto un primo giro di modifiche è stato fatto su codice sorpassato e buttato via. Stefano a volte pubblica da altre strade (ci sono commit "Add files via upload" fatti dall'interfaccia di GitHub), quindi la copia locale non è mai da dare per aggiornata.
 
-8. **Pl@ntNet non si può provare in locale**: la sua chiave sta solo su Vercel. Se scade (8 secondi) l'analisi continua comunque con Gemini: la funzione `chiediPlantNet` restituisce `null` e non blocca niente.
+8. **Il pannello del browser integrato riporta `visibilityState: "hidden"`** anche quando la scheda è in primo piano. Per questo il controllo della versione al ritorno in primo piano **non si può collaudare lì**: l'evento viene (giustamente) ignorato dalla guardia. Si collauda importando `src/aggiornamento.js` in node con document, window, sessionStorage, caches e fetch finti — 10 scenari, compresi il ciclo di ricaricamenti e l'analisi in corso. Il percorso "all'apertura" invece si vede bene nel browser: `performance.getEntriesByType('navigation')[0].type` diventa `"reload"`.
+
+9. **Pl@ntNet non si può provare in locale**: la sua chiave sta solo su Vercel. Se scade (8 secondi) l'analisi continua comunque con Gemini: la funzione `chiediPlantNet` restituisce `null` e non blocca niente.
 
 ## Come collaudare senza Vercel e senza telefono
 
@@ -83,5 +101,4 @@ Dal vivo, a app pubblicata: `https://barbaplant.vercel.app/api/analizza?prova=1`
 
 ## Da decidere con Stefano
 
-- **Aggiornamento automatico dell'app**: manca il controllo di versione all'apertura, che è una regola fissa per tutte le sue app. Qui non c'è ancora.
 - **Precisione della specie**: tenere i Lite davanti (veloce, quota larga) o rimettere un Flash (più preciso, 20 piante al giorno). Vedi la tabella sopra.

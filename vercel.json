@@ -3,5 +3,23 @@
     "api/analizza.js": {
       "maxDuration": 60
     }
-  }
+  },
+  "headers": [
+    {
+      "source": "/",
+      "headers": [{ "key": "Cache-Control", "value": "no-store, must-revalidate" }]
+    },
+    {
+      "source": "/index.html",
+      "headers": [{ "key": "Cache-Control", "value": "no-store, must-revalidate" }]
+    },
+    {
+      "source": "/versione.json",
+      "headers": [{ "key": "Cache-Control", "value": "no-store, must-revalidate" }]
+    },
+    {
+      "source": "/manifest.json",
+      "headers": [{ "key": "Cache-Control", "value": "no-store, must-revalidate" }]
+    }
+  ]
 }

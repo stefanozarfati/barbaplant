@@ -1,3 +1,4 @@
+import { VERSIONE, segnaOccupato, segnaLibero } from "./aggiornamento.js";
 import React, { useState, useRef, useMemo, useEffect } from "react";
 
 /* ============================================================
@@ -628,19 +629,26 @@ function annunciaAttesa(secondi) {
   try { window.dispatchEvent(new CustomEvent("bp:attesa", { detail: secondi })); } catch { /* niente banner */ }
 }
 async function conPazienza(operazione) {
-  for (let giro = 0; ; giro++) {
-    try {
-      const risultato = await operazione();
-      annunciaAttesa(0);
-      return risultato;
-    } catch (err) {
-      if (!/sovraccaric/i.test(String(err && err.message)) || giro >= ATTESE_MASSIME) {
+  /* Finche' un'analisi e' in corso l'app non si ricarica da sola per
+     aggiornarsi: aspetta che abbia finito, altrimenti si perderebbe la foto. */
+  segnaOccupato();
+  try {
+    for (let giro = 0; ; giro++) {
+      try {
+        const risultato = await operazione();
         annunciaAttesa(0);
-        throw err;
+        return risultato;
+      } catch (err) {
+        if (!/sovraccaric/i.test(String(err && err.message)) || giro >= ATTESE_MASSIME) {
+          annunciaAttesa(0);
+          throw err;
+        }
+        annunciaAttesa(ATTESA_SOVRACCARICO / 1000);
+        await new Promise((r) => setTimeout(r, ATTESA_SOVRACCARICO));
       }
-      annunciaAttesa(ATTESA_SOVRACCARICO / 1000);
-      await new Promise((r) => setTimeout(r, ATTESA_SOVRACCARICO));
     }
+  } finally {
+    segnaLibero();
   }
 }
 
@@ -1782,6 +1790,10 @@ export default function App() {
       </Card>
 
       <LivelloPollice piante={piante.length} analisi={analisiTotali} />
+
+      <p className="text-center text-xs" style={{ color: C.soft }}>
+        Versione {VERSIONE} · si aggiorna da sola
+      </p>
 
       <div className="grid grid-cols-3 gap-3">
         {[
