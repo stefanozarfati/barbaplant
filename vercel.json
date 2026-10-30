@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/analizza.js": {
+      "maxDuration": 60
+    }
+  }
+}

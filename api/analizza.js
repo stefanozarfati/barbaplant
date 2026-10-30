@@ -3,15 +3,24 @@
 // interroga Gemini. La chiave non viaggia mai dentro il telefono dell'utente.
 
 // gemini-2.5-flash non e' piu' disponibile per i nuovi utenti (Google, settembre 2026).
-// Piano gratuito (settembre 2026): i Flash hanno 20 richieste al giorno ciascuno,
-// i Flash-Lite 500 al giorno. Prima i piu' bravi, poi i Lite come ampia riserva.
+// Piano gratuito: i Flash hanno 20 richieste al giorno ciascuno, i Flash-Lite 500.
+//
+// Ordine deciso su misure vere (scheda commestibilita', 30 ottobre 2026):
+//   gemini-3.5-flash-lite   2,2 - 3,0 s   500 al giorno
+//   gemini-3.1-flash-lite   3,2 - 3,4 s   500 al giorno
+//   gemini-3.6-flash        5 - 8 s        20 al giorno
+//   gemini-3.5-flash        5 s            20 al giorno
+//   gemini-3.7-flash        risponde 503 "high demand"
+//   gemini-3.8-flash        oltre 25 s: tolto, era il primo della catena e
+//                           scadeva ogni volta prima di rispondere
+// Prima i Lite: sono i piu' rapidi E gli unici con quota larga. Con i Flash
+// davanti bastavano dieci piante al giorno per esaurirli, e da quel momento
+// ogni analisi perdeva quasi un minuto attraversando modelli che dicevano no.
 const MODELLI = [
-  "gemini-3.8-flash",
-  "gemini-3.7-flash",
-  "gemini-3.6-flash",
-  "gemini-3.5-flash",
   "gemini-3.5-flash-lite",
   "gemini-3.1-flash-lite",
+  "gemini-3.6-flash",
+  "gemini-3.5-flash",
 ];
 
 const SCHEMA = `{
@@ -142,7 +151,7 @@ Regole obbligatorie:
 - "certezza": intero 0-100, quanto sei sicuro della specie basandoti solo sulla foto. Sii severo: se vedi poche foglie o manca il fiore, abbassa il valore.
 - "specieConfermata": il nome scientifico che ritieni corretto, anche se diverso da quello proposto.
 - "tossicita.livello": una parola fra nessuna, lieve, media, alta.
-- "commestibilita": una voce per parte (foglie, fiori, frutti, semi, radici, fusto). "stato" e' una fra: commestibile, solo cotta, non commestibile, tossica.
+- "commestibilita": elenca SEMPRE almeno quattro parti fra foglie, fiori, frutti, semi, radici, fusto, anche quando la risposta e' "non commestibile". Non fermarti alla parte piu' nota. "stato" e' una fra: commestibile, solo cotta, non commestibile, tossica.
 - "sosia": specie con cui si confonde, con il segno pratico che le distingue. Se esiste un sosia velenoso mettilo per primo. Se non ce ne sono, lista vuota.
 - "sosia[].pericolo": una parola fra mortale, tossico, innocuo. Pensa soprattutto alle confusioni classiche della raccolta spontanea (es. ombrellifere con cicuta, aglio orsino con colchico o mughetto, borragine con digitale).
 - "proveConferma": 2-4 controlli pratici sul campo che la foto non mostra (odore della foglia strofinata, fusto, peluria, macchie, radice o bulbo, habitat). Frasi brevi e operative, es. "Strofina una foglia: deve sapere d'aglio, altrimenti non raccoglierla".
@@ -171,7 +180,7 @@ async function chiediPlantNet(immagine, mediaType) {
   const chiave = process.env.PLANTNET_API_KEY;
   if (!chiave || !immagine) return null;
   const controllo = new AbortController();
-  const timer = setTimeout(() => controllo.abort(), 15000);
+  const timer = setTimeout(() => controllo.abort(), 8000);
   try {
     const modulo = new FormData();
     const dati = Buffer.from(immagine, "base64");
@@ -304,15 +313,16 @@ export default async function handler(req, res) {
   let sovraccarico = "";
   // Tempo massimo complessivo: meglio un messaggio chiaro che una rotellina infinita.
   const inizio = Date.now();
-  const LIMITE_TOTALE = 55000; // ms per tutti i tentativi
-  const LIMITE_MODELLO = 25000; // ms per singolo modello
+  // Con modelli da 2-3 secondi, 12 secondi sono abbondanti: se uno non risponde
+  // in quel tempo e' bloccato, e conviene passare al successivo invece di
+  // bruciare mezzo minuto su di lui.
+  const LIMITE_TOTALE = 40000; // ms per tutti i tentativi
+  const LIMITE_MODELLO = 12000; // ms per singolo modello
   for (const modello of MODELLI) {
     const restante = LIMITE_TOTALE - (Date.now() - inizio);
-    if (restante < 8000) break;
+    if (restante < 5000) break;
     const controllo = new AbortController();
     const timer = setTimeout(() => controllo.abort(), Math.min(LIMITE_MODELLO, restante));
-    // gemini-3.8-flash: niente temperature (Google chiede di toglierla) e ragionamento "low" per rispondere prima.
-    const config38 = modello.startsWith("gemini-3.8");
     try {
       const risposta = await fetch(
         "https://generativelanguage.googleapis.com/v1beta/models/" + modello + ":generateContent",
@@ -323,8 +333,11 @@ export default async function handler(req, res) {
           body: JSON.stringify({
             contents: [{ role: "user", parts: parti }],
             generationConfig: {
-              ...(config38 ? { thinkingConfig: { thinkingLevel: "low" } } : { temperature: 0.4 }),
-              maxOutputTokens: config38 ? 8000 : tipo === "sicurezza" ? 4000 : 3000,
+              // Senza "low" il modello ragiona prima di rispondere: misurati
+              // 15,6 secondi con 1639 token di ragionamento contro 7,8 secondi
+              // senza, e la risposta era la stessa. Prima valeva solo per il 3.8.
+              thinkingConfig: { thinkingLevel: "low" },
+              maxOutputTokens: tipo === "sicurezza" ? 4000 : 3000,
               responseMimeType: "application/json",
               responseSchema: schema,
             },

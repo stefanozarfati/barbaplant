@@ -238,7 +238,7 @@ function scriviArchivio(dati) {
 const LIMITE_INVIO = 3000000;
 /* Accetta sia il file appena scelto (letto senza caricarlo tutto in memoria come testo,
    cosa che con le foto pesanti dell'iPhone falliva) sia una foto gia' in formato dataURL. */
-function ridimensiona(sorgente, latoMax = 2048, qualita = 0.9) {
+function ridimensiona(sorgente, latoMax = 1024, qualita = 0.82) {
   return new Promise((risolvi, rifiuta) => {
     const daFile = typeof sorgente !== "string";
     const indirizzo = daFile ? URL.createObjectURL(sorgente) : sorgente;
@@ -431,7 +431,7 @@ Usa nomeComune "Nessuna pianta riconosciuta" (salute 0) SOLO se nella foto non c
 /* Configurazione IA. La chiave la inserisce l'utente dal Profilo: non sta nel codice. */
 const CFG = { chiave: "", proxy: "" };
 const MODELLI_CLAUDE = ["claude-sonnet-5", "claude-sonnet-4-6", "claude-haiku-4-5-20251001"];
-const MODELLI_GEMINI = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-2.5-flash"];
+const MODELLI_GEMINI = ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3.6-flash"];
 
 async function chiamaProxy(contenuto) {
   let ultimo = new Error("Nessun modello disponibile");
